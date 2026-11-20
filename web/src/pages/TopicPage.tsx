@@ -1,5 +1,5 @@
 import { Check } from "lucide-react"
-import type { ReactNode } from "react"
+import type { CSSProperties, ReactNode } from "react"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Button } from "@/components/ui/button"
 import { FAQS, TINTS } from "@/lib/data"
@@ -18,8 +18,8 @@ const SLOTS: Record<string, [string, string, string]> = { "0-0": LEC, "4-0": LAB
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="mb-5 rounded-xl border border-line bg-white p-6">
-      <h2 className="mb-4 text-lg font-bold text-navy">{title}</h2>
+    <section className="topic-section" data-reveal>
+      <div className="topic-section__heading"><span>YOUR GUIDE</span><h2>{title}</h2></div>
       {children}
     </section>
   )
@@ -27,17 +27,17 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 function BlockView({ block, onContact }: { block: Block; onContact: Contact }) {
   if (block.kind === "note") {
-    return <section className="mb-5 rounded-xl border border-[#EBD59C] bg-[#FBEFD0] p-6 text-[#5C4300]"><strong>In an emergency, call 999.</strong> For urgent wellbeing concerns, please also contact a member of staff.</section>
+    return <section className="emergency-note" data-reveal><strong>In an emergency, call 999.</strong> For urgent wellbeing concerns, please also contact a member of staff.</section>
   }
   if (block.kind === "steps") {
     return (
       <Section title={block.title}>
         <ol className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
           {block.items.map(([h, p], i) => (
-            <li key={h} className="flex flex-col gap-1.5 rounded-xl border border-line bg-page p-[18px] transition hover:-translate-y-0.5 hover:border-brand">
-              <span className="grid size-[34px] place-items-center rounded-full bg-brand font-bold text-white">{i + 1}</span>
-              <strong className="text-navy">{h}</strong>
-              <span className="text-[0.93rem] text-muted-ink">{p}</span>
+            <li key={h} className="step-card" style={{ animationDelay: `${i * 80}ms` }}>
+              <span className="step-card__number">{String(i + 1).padStart(2, "0")}</span>
+              <strong>{h}</strong>
+              <span>{p}</span>
             </li>
           ))}
         </ol>
@@ -47,12 +47,12 @@ function BlockView({ block, onContact }: { block: Block; onContact: Contact }) {
   if (block.kind === "timeline") {
     return (
       <Section title={block.title}>
-        <ol className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-5">
+        <ol className="journey-timeline">
           {block.items.map(([h, p], i) => (
-            <li key={h} className="relative flex flex-col gap-1 border-t-2 border-line pt-6">
-              <span className={"absolute -top-[9px] left-0 size-4 rounded-full border-[3px] border-brand " + (i === 0 ? "bg-brand" : "bg-white")} />
-              <strong className="text-navy">{h}</strong>
-              <span className="text-[0.93rem] text-muted-ink">{p}</span>
+            <li key={h} className="journey-timeline__step" style={{ animationDelay: `${i * 80}ms` }}>
+              <span className="journey-timeline__marker">{String(i + 1).padStart(2, "0")}</span>
+              <strong>{h}</strong>
+              <span>{p}</span>
             </li>
           ))}
         </ol>
@@ -79,10 +79,10 @@ function BlockView({ block, onContact }: { block: Block; onContact: Contact }) {
           {block.items.map((c) => {
             const Icon = c.icon
             return (
-              <div key={c.title} className="flex flex-col items-start gap-2 rounded-xl border border-line bg-white p-5 transition hover:-translate-y-0.5 hover:shadow-md">
-                <span className="grid size-[52px] place-items-center rounded-xl bg-brand-soft text-brand"><Icon className="size-6" /></span>
-                <strong className="text-lg text-navy">{c.title}</strong>
-                <p className="mb-1 flex-1 text-muted-ink">{c.text}</p>
+              <div key={c.title} className="topic-action-card">
+                <span className="topic-action-card__icon"><Icon className="size-5" /></span>
+                <strong>{c.title}</strong>
+                <p>{c.text}</p>
                 {c.action && <Button variant="outline" onClick={() => onContact(c.action?.category ?? null, "Request: " + (c.action?.category ?? c.title))}>{c.action.label}</Button>}
               </div>
             )
@@ -123,18 +123,20 @@ export default function TopicPage({ page, onContact }: { page: PageDef; onContac
       <nav aria-label="Breadcrumb" className="mb-3.5 text-sm text-muted-ink">
         <a href="#ask" className="font-semibold text-brand hover:underline">Dashboard</a> / {page.group ? page.group + " / " : ""}<span>{page.title}</span>
       </nav>
-      <header className="mb-5 flex flex-col items-start gap-5 rounded-xl border border-line p-7 sm:flex-row sm:items-center" style={{ background: t[0] }}>
-        <span className="grid size-[76px] flex-none place-items-center rounded-full bg-white" style={{ color: t[1] }}><Icon className="size-9" /></span>
-        <div>
-          <h1 className="mb-1 text-3xl font-bold leading-tight sm:text-4xl" style={{ color: t[1] }}>{page.title}</h1>
-          <p className="max-w-[56ch] text-lg text-ink">{page.lead}</p>
+      <header className="topic-hero mb-6" style={{ "--topic-wash": t[0], "--topic-ink": t[1] } as CSSProperties} data-reveal>
+        <div className="topic-hero__copy">
+          <span className="topic-hero__eyebrow">STUDENT GUIDE <i /> {page.group ?? "SERVICES"}</span>
+          <h1>{page.title}</h1>
+          <p>{page.lead}</p>
         </div>
+        <span className="topic-hero__icon"><Icon aria-hidden="true" className="size-8" /></span>
+        <span className="topic-hero__index">SYNAPSE <b>/{page.slug.toUpperCase()}</b></span>
       </header>
-      <div className="mb-5 grid grid-cols-[repeat(auto-fit,minmax(210px,1fr))] gap-4">
+      <div className="glance-grid mb-6" data-reveal>
         {page.glance.map(([k, v]) => (
-          <div key={k} className="flex flex-col gap-1 rounded-xl border border-line bg-white px-[18px] py-4">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-ink">{k}</span>
-            <strong className="text-navy">{v}</strong>
+          <div key={k} className="glance-item">
+            <span>{k}</span>
+            <strong>{v}</strong>
           </div>
         ))}
       </div>
@@ -154,7 +156,7 @@ export default function TopicPage({ page, onContact }: { page: PageDef; onContac
           </Accordion>
         </Section>
       )}
-      <section className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-line bg-brand-soft p-6">
+      <section className="topic-finish" data-reveal>
         <div>
           <h2 className="mb-1 text-lg font-bold text-navy">Still need help?</h2>
           <p className="text-muted-ink">Ask Synapse or contact a member of staff.</p>

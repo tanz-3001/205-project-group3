@@ -1,14 +1,23 @@
-import { ArrowRight, FileText, ThumbsDown, ThumbsUp } from "lucide-react"
+import { ArrowRight, BookOpen, Coins, FileText, HeartPulse, Monitor, Search, ThumbsDown, ThumbsUp } from "lucide-react"
 import { useState } from "react"
 import type { FormEvent, ReactNode } from "react"
 import { Button } from "@/components/ui/button"
+import { PromptComposer } from "@/components/ui/prompt-composer"
+import { Suggestions } from "@/components/ui/suggestions"
+import SupportMap from "@/components/SupportMap"
 import { useApp } from "@/lib/app-context"
 import { ask } from "@/lib/assist"
 import type { Outcome } from "@/lib/assist"
-import { FAQS, TINTS, TOPIC_PAGES } from "@/lib/data"
+import { FAQS, STUDENT_PROFILE, TINTS, TOPIC_PAGES } from "@/lib/data"
 import type { FAQ } from "@/lib/data"
 
 const CHIPS = ["Reset my password", "Pay my fees", "Add or drop a course", "Exam schedule"]
+const SERVICE_ROUTES = [
+  { label: "Courses", href: "#enrollment", icon: BookOpen, position: "hero-network__node--northwest" },
+  { label: "Fees", href: "#fees", icon: Coins, position: "hero-network__node--northeast" },
+  { label: "IT support", href: "#it", icon: Monitor, position: "hero-network__node--southwest" },
+  { label: "Wellbeing", href: "#support", icon: HeartPulse, position: "hero-network__node--southeast" },
+]
 const label = (t: string) => (t === "IT" ? "IT Support" : t)
 
 function Tag({ topic }: { topic: string }) {
@@ -33,6 +42,7 @@ export default function Dashboard({ onContact }: { onContact: (category: string 
   const [out, setOut] = useState<Outcome | null>(null)
   const [rated, setRated] = useState<boolean | null>(null)
   const [filter, setFilter] = useState("")
+  const firstName = STUDENT_PROFILE.displayName.trim().split(/\s+/)[0]
 
   const showFaq = (faq: FAQ) => {
     setRated(null)
@@ -60,22 +70,41 @@ export default function Dashboard({ onContact }: { onContact: (category: string 
 
   return (
     <div>
-      <section className="mb-5 rounded-xl border border-line bg-white p-6">
-        <h1 className="mb-1.5 text-3xl font-bold leading-tight tracking-tight text-navy sm:text-4xl">How can we help you today?</h1>
-        <p className="mb-5 text-muted-ink">Search official policies and FAQs, or contact a member of staff.</p>
-        <form onSubmit={submit} className="flex flex-wrap gap-2 rounded-xl border-2 border-navy bg-white p-1.5 focus-within:ring-4 focus-within:ring-brand-soft">
-          <label htmlFor="ask-input" className="sr-only">Ask a question</label>
-          <input id="ask-input" value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" placeholder="Type your question, for example: How do I reset my password?" className="min-h-12 flex-1 basis-56 bg-transparent px-3 text-lg outline-none" />
-          <Button type="submit" className="h-12 bg-brand px-7 text-base font-bold text-white hover:bg-brand-dark">Search</Button>
-        </form>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {CHIPS.map((c) => (
-            <button key={c} onClick={() => { setText(c); run(c) }} className="min-h-11 rounded-lg border border-line bg-white px-3.5 text-sm font-semibold text-navy transition-colors hover:border-brand hover:bg-brand-soft hover:text-brand">{c}</button>
-          ))}
+      <section className="home-hero mb-7" data-reveal>
+        <div className="home-hero__texture" aria-hidden="true" />
+        <div className="home-hero__content">
+          <p className="home-hero__eyebrow"><span className="home-hero__eyebrow-mark">S</span> STUDENT SERVICES</p>
+          <h1 className="home-hero__title">Hi, <em>{firstName}.</em></h1>
+          <p className="home-hero__description">Ask your question. Find your answer.</p>
+          <PromptComposer value={text} onValueChange={setText} onSubmit={submit} />
+          <div className="home-hero__suggestions">
+            <span>TRY ASKING</span>
+            <Suggestions variant="dark" items={CHIPS.map((label) => ({ id: label, label }))} onSelect={(item) => { setText(item.label); run(item.label) }} />
+          </div>
+        </div>
+        <div className="hero-network" aria-label="Service map: courses, fees, IT support, and wellbeing">
+          <div className="hero-network__meta"><span>THE SERVICE MAP</span><span>04 ROUTES</span></div>
+          <svg aria-hidden="true" viewBox="0 0 360 300" className="hero-network__lines">
+            <path d="M68 66 C117 66 125 114 180 150 S244 236 292 236" />
+            <path d="M292 66 C244 66 235 114 180 150 S116 236 68 236" />
+            <path d="M68 66 C118 114 239 194 292 236" />
+            <path d="M292 66 C240 114 120 194 68 236" />
+            <circle cx="180" cy="150" r="53" />
+            <circle cx="180" cy="150" r="69" />
+          </svg>
+          <div className="hero-network__hub"><span>YOU</span><strong>Start<br />here</strong><i /></div>
+          {SERVICE_ROUTES.map((service) => {
+            const Icon = service.icon
+            return (
+              <a key={service.label} href={service.href} className={`hero-network__node ${service.position}`}>
+                <span><Icon aria-hidden="true" className="size-[17px]" /></span>{service.label}
+              </a>
+            )
+          })}
         </div>
       </section>
 
-      <div aria-live="polite">
+      <div aria-live="polite" data-reveal>
         {out?.kind === "answer" && (
           <Card topic={out.faq.topic}>
             <h2 className="mb-2.5 text-2xl font-bold leading-tight text-navy">{out.faq.q}</h2>
@@ -124,29 +153,34 @@ export default function Dashboard({ onContact }: { onContact: (category: string 
         )}
       </div>
 
-      <section className="mt-5 rounded-xl border border-line bg-white p-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-bold text-navy">Topics</h2>
-          <label className="flex items-center gap-2 text-sm text-muted-ink">
+      <section className="mt-10" data-reveal>
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.13em] text-brand">Browse by service</p>
+            <h2 className="text-2xl font-semibold tracking-tight text-navy">Find the right team</h2>
+          </div>
+          <label className="relative flex items-center text-sm text-muted-ink">
             <span className="sr-only">Find a topic</span>
-            <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Find a topic" className="min-h-11 rounded-lg border border-line bg-page px-3 text-base text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand" />
+            <Search aria-hidden="true" className="pointer-events-none absolute left-3 size-4" />
+            <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Search services" className="min-h-11 w-full rounded-xl border border-line bg-white pl-9 pr-3 text-base text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-soft sm:w-56" />
           </label>
         </div>
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-4">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(235px,1fr))] gap-3">
           {topics.map((p) => {
             const Icon = p.icon
             const t = TINTS[p.topic]
             return (
-              <a key={p.slug} href={"#" + p.slug} className="group flex items-center gap-4 rounded-xl border border-line bg-white p-4 transition hover:-translate-y-0.5 hover:border-brand hover:shadow-md">
-                <span className="grid size-14 place-items-center rounded-xl transition-transform group-hover:scale-105" style={{ background: t[0], color: t[1] }}><Icon className="size-6" /></span>
-                <span className="flex flex-1 flex-col"><strong className="text-navy">{label(p.topic)}</strong><span className="text-sm text-muted-ink">{FAQS.filter((x) => x.topic === p.topic).length === 1 ? "1 question" : `${FAQS.filter((x) => x.topic === p.topic).length} questions`}</span></span>
-                <ArrowRight className="size-[18px] text-muted-ink transition-transform group-hover:translate-x-1 group-hover:text-brand" />
+              <a key={p.slug} href={"#" + p.slug} className="group flex min-h-[96px] items-center gap-3.5 rounded-xl border border-line/90 bg-white p-4 transition-colors hover:border-brand/45 hover:bg-[#fbfdfc] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft">
+                <span className="grid size-11 shrink-0 place-items-center rounded-xl" style={{ background: t[0], color: t[1] }}><Icon className="size-5" /></span>
+                <span className="flex min-w-0 flex-1 flex-col"><strong className="text-[0.96rem] font-semibold text-navy">{label(p.topic)}</strong><span className="mt-0.5 text-sm text-muted-ink">{FAQS.filter((x) => x.topic === p.topic).length === 1 ? "1 answer" : `${FAQS.filter((x) => x.topic === p.topic).length} answers`}</span></span>
+                <ArrowRight className="size-4 shrink-0 text-muted-ink transition-colors group-hover:text-brand" />
               </a>
             )
           })}
           {topics.length === 0 && <p className="text-muted-ink">No topics match your search.</p>}
         </div>
       </section>
+      <SupportMap onContact={onContact} />
     </div>
   )
 }

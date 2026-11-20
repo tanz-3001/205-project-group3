@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import ContactDialog from "@/components/ContactDialog"
 import type { ContactState } from "@/components/ContactDialog"
 import Sidebar from "@/components/Sidebar"
@@ -15,6 +15,36 @@ function Shell() {
   const [contact, setContact] = useState<ContactState | null>(null)
   const [toast, setToast] = useState("")
   const page = PAGES.find((p) => p.slug === route)
+
+  useEffect(() => {
+    const nodes = document.querySelectorAll<HTMLElement>("[data-reveal]")
+    const progressLine = document.querySelector<HTMLElement>(".scroll-progress span")
+    let frame = 0
+    const updateProgress = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const distance = document.documentElement.scrollHeight - window.innerHeight
+        const progress = distance > 0 ? window.scrollY / distance : 0
+        if (progressLine) progressLine.style.transform = `scaleX(${progress})`
+      })
+    }
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-visible")
+          observer.unobserve(entry.target)
+        }
+      })
+    }, { threshold: 0.12, rootMargin: "0px 0px -24px 0px" })
+    nodes.forEach((node) => observer.observe(node))
+    window.addEventListener("scroll", updateProgress, { passive: true })
+    updateProgress()
+    return () => {
+      observer.disconnect()
+      window.removeEventListener("scroll", updateProgress)
+      cancelAnimationFrame(frame)
+    }
+  }, [route])
   const openContact = (category: string | null, q: string) => setContact({ category, q })
   const closeContact = (sent: boolean) => {
     setContact(null)
@@ -25,13 +55,14 @@ function Shell() {
   }
 
   return (
-    <div className="min-h-screen bg-page text-ink">
+    <div className="app-canvas min-h-screen bg-page text-ink">
       <TopBar route={route} />
-      <div className="mx-auto grid max-w-[1320px] items-start gap-7 px-4 pb-14 pt-8 sm:px-7 lg:grid-cols-[280px_1fr]">
-        <Sidebar route={route} onContact={openContact} />
-        <main>
+      <div className="scroll-progress" aria-hidden="true"><span /></div>
+      <div className="mx-auto grid max-w-[1440px] items-start gap-6 px-4 pb-16 pt-6 sm:px-7 lg:grid-cols-[270px_minmax(0,1fr)] lg:gap-8 lg:px-10 lg:pt-9">
+        <div className="lg:sticky lg:top-[108px]"><Sidebar route={route} onContact={openContact} /></div>
+        <main className="min-w-0">
           {page ? <TopicPage key={page.slug} page={page} onContact={openContact} /> : route === "requests" ? <Requests /> : <Dashboard onContact={openContact} />}
-          <p className="mt-2 text-sm text-muted-ink">Sample content. Replace with approved FAQs.</p>
+          <p className="mt-8 border-t border-line/80 pt-4 text-xs text-muted-ink">Synapse student services <span className="px-1.5 text-brand/70">/</span> Sample content. Replace with approved FAQs.</p>
         </main>
       </div>
       <ContactDialog state={contact} onClose={closeContact} />
