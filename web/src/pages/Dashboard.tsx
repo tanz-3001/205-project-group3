@@ -139,7 +139,7 @@ export default function Dashboard({ onContact }: { onContact: (category: string 
             return (
               <a key={p.slug} href={"#" + p.slug} className="group flex items-center gap-4 rounded-xl border border-line bg-white p-4 transition hover:-translate-y-0.5 hover:border-brand hover:shadow-md">
                 <span className="grid size-14 place-items-center rounded-xl transition-transform group-hover:scale-105" style={{ background: t[0], color: t[1] }}><Icon className="size-6" /></span>
-                <span className="flex flex-1 flex-col"><strong className="text-navy">{label(p.topic)}</strong><span className="text-sm text-muted-ink">{FAQS.filter((x) => x.topic === p.topic).length} questions</span></span>
+                <span className="flex flex-1 flex-col"><strong className="text-navy">{label(p.topic)}</strong><span className="text-sm text-muted-ink">{FAQS.filter((x) => x.topic === p.topic).length === 1 ? "1 question" : `${FAQS.filter((x) => x.topic === p.topic).length} questions`}</span></span>
                 <ArrowRight className="size-[18px] text-muted-ink transition-transform group-hover:translate-x-1 group-hover:text-brand" />
               </a>
             )
