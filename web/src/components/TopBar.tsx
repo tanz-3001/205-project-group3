@@ -36,11 +36,11 @@ export default function TopBar({ route }: { route: string }) {
             <span className="mt-1.5 text-[0.62rem] font-semibold uppercase tracking-[0.18em] text-white/55">Student portal</span>
           </span>
         </a>
-        <nav aria-label="Services" className="order-3 flex w-full items-center gap-1 overflow-x-auto pb-3 sm:order-none sm:ml-2 sm:w-auto sm:flex-1 sm:pb-0">
+        <nav aria-label="Services" className="order-3 flex w-full flex-wrap items-center gap-1 pb-3 sm:order-none sm:ml-2 sm:w-auto sm:flex-1 sm:pb-0">
           <a href="#ask" aria-current={route === "ask" ? "page" : undefined} className={tab(route === "ask")}>Overview</a>
-          <details className="relative shrink-0">
+          <details className="group relative shrink-0">
             <summary className={tab(current?.nav === "academic") + " cursor-pointer list-none [&::-webkit-details-marker]:hidden"}>
-              Academic <ChevronDown aria-hidden="true" className="size-3.5" />
+              Academic <ChevronDown aria-hidden="true" className="size-3.5 transition-transform group-open:rotate-180" />
             </summary>
             <div className="absolute left-0 top-[calc(100%+10px)] z-50 w-60 rounded-2xl border border-line bg-white p-2 text-ink shadow-[0_18px_55px_-24px_rgba(10,35,40,0.35)]">
               <p className="px-3 pb-1 pt-2 text-[0.65rem] font-bold uppercase tracking-[0.16em] text-muted-ink">Academic services</p>
