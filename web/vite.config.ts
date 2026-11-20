@@ -1,9 +1,12 @@
-import path from "path"                          // add
-import tailwindcss from "@tailwindcss/vite"      // add
+import { dirname, resolve } from "node:path"
+import { fileURLToPath } from "node:url"
+import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 
+const root = dirname(fileURLToPath(import.meta.url))
+
 export default defineConfig({
-  plugins: [react(), tailwindcss()],             // add tailwindcss()
-  resolve: { alias: { "@": path.resolve(__dirname, "./src") } },  // add
+  plugins: [react(), tailwindcss()],
+  resolve: { alias: { "@": resolve(root, "src") } },
 })

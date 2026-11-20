@@ -1,6 +1,9 @@
 import { BookOpen, CalendarDays, Coins, CreditCard, FileText, Headset, Heart, Monitor, Scale, ShieldCheck, UserPlus } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
+// Demo identity for the prototype. Replace this with the authenticated profile when sign-in is connected.
+export const STUDENT_PROFILE = { displayName: "Layla A.", role: "Student" }
+
 export type FAQ = { topic: string; q: string; keywords: string; a: string; source: string }
 
 export const FAQS: FAQ[] = [

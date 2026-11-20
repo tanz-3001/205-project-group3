@@ -1,35 +1,49 @@
+import { ArrowUpRight, ClipboardList, Clock3, Inbox, MessageCircle, RotateCcw } from "lucide-react"
+import { RequestStepper } from "@/components/ui/request-stepper"
 import { TINTS } from "@/lib/data"
 import { useApp } from "@/lib/app-context"
 
-const fmt = (t: number) => new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short" }) + ", " + new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+const fmt = (t: number) => new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short" }) + " · " + new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
 
 export default function Requests() {
   const { requests, reset } = useApp()
   const list = [...requests].reverse()
+  const open = list.filter((r) => r.status !== "Resolved").length
   return (
-    <section className="rounded-xl border border-line bg-white p-6">
-      <h1 className="mb-4 text-2xl font-bold text-navy">My requests</h1>
+    <div className="requests-page">
+      <header className="requests-header" data-reveal>
+        <div>
+          <span className="requests-header__eyebrow"><ClipboardList aria-hidden="true" className="size-4" /> YOUR FOLLOW-THROUGH</span>
+          <h1>My requests<span>.</span></h1>
+          <p>One place to see what you sent and what happens next.</p>
+        </div>
+        <div className="requests-header__count"><strong>{String(open).padStart(2, "0")}</strong><span>{open === 1 ? "open request" : "open requests"}</span></div>
+      </header>
       {list.length === 0 ? (
-        <p className="text-muted-ink">Nothing yet. Requests you send to staff show up here.</p>
+        <section className="requests-empty" data-reveal>
+          <span className="requests-empty__art"><Inbox aria-hidden="true" className="size-8" /></span>
+          <div><span className="requests-header__eyebrow">A CLEAN SLATE</span><h2>Nothing in the queue.</h2><p>When you contact staff, your request and its next steps will show up here.</p><a href="#ask">Ask Synapse <ArrowUpRight aria-hidden="true" className="size-4" /></a></div>
+        </section>
       ) : (
-        <ul className="divide-y divide-line">
-          {list.map((r) => {
-            const t = TINTS[r.tag] ?? ["#E6E9EF", "#1A2233"]
+        <section className="request-list" aria-label="Your support requests">
+          {list.map((r, index) => {
+            const tint = TINTS[r.tag] ?? ["#E6E9EF", "#1A2233"]
             return (
-              <li key={r.id} className="flex flex-wrap items-start justify-between gap-3 py-4">
-                <div>
-                  <span className="rounded-md px-2.5 py-0.5 text-xs font-bold" style={{ background: t[0], color: t[1] }}>{r.tag === "IT" ? "IT Support" : r.tag}</span>
-                  <p className="mt-1.5 font-medium">{r.q}</p>
-                  <p className="text-sm text-muted-ink">{fmt(r.at)}</p>
-                  {r.reply && <p className="mt-2 rounded-lg bg-brand-soft px-3 py-2 text-sm">{r.reply}</p>}
+              <article key={r.id} className="request-card" data-reveal style={{ animationDelay: `${index * 60}ms` }}>
+                <div className="request-card__head">
+                  <div className="request-card__meta"><span className="request-card__number">REQUEST / {String(list.length - index).padStart(2, "0")}</span><span className="request-card__tag" style={{ background: tint[0], color: tint[1] }}>{r.tag === "IT" ? "IT Support" : r.tag}</span></div>
+                  <span className={`request-status ${r.status === "Resolved" ? "request-status--done" : ""}`}><i />{r.status}</span>
                 </div>
-                <span className="text-sm font-semibold text-muted-ink">{r.status}</span>
-              </li>
+                <h2>{r.q}</h2>
+                <p className="request-card__date"><Clock3 aria-hidden="true" className="size-3.5" /> Sent {fmt(r.at)}</p>
+                <RequestStepper status={r.status} reply={r.reply} />
+                {r.reply && <div className="request-reply"><MessageCircle aria-hidden="true" className="size-[18px]" /><div><strong>Staff reply</strong><p>{r.reply}</p></div></div>}
+              </article>
             )
           })}
-        </ul>
+        </section>
       )}
-      <button onClick={reset} className="mt-6 text-sm text-muted-ink underline hover:text-brand">Reset demo data</button>
-    </section>
+      <button type="button" onClick={reset} className="reset-demo"><RotateCcw aria-hidden="true" className="size-3.5" /> Reset demo data</button>
+    </div>
   )
 }
