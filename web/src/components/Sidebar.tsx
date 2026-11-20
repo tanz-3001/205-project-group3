@@ -1,9 +1,10 @@
-import { ArrowUpRight, BadgeHelp, BookOpen, ClipboardList, Coins, HeartHandshake, LayoutDashboard, Scale } from "lucide-react"
+import { ArrowUpRight, BadgeHelp, BookOpen, ClipboardList, Coins, HeartHandshake, LayoutDashboard, Scale, Sparkles } from "lucide-react"
 import { useApp } from "@/lib/app-context"
-import { STUDENT_PROFILE } from "@/lib/data"
+import { useAuth } from "@/lib/auth"
 
 const items = [
   { slug: "ask", label: "Overview", icon: LayoutDashboard },
+  { slug: "assist", label: "Synapse Assist", icon: Sparkles },
   { slug: "requests", label: "My requests", icon: ClipboardList },
 ]
 const helpTiles = [
@@ -14,6 +15,8 @@ const helpTiles = [
 
 export default function Sidebar({ route, onContact }: { route: string; onContact: (category: string | null, q: string) => void }) {
   const { requests } = useApp()
+  const { student } = useAuth()
+  const initials = (student?.name ?? "").split(/\s+/).map((p) => p[0]).join("").slice(0, 2)
   const open = requests.filter((r) => r.status !== "Resolved").length
 
   return (
@@ -21,15 +24,15 @@ export default function Sidebar({ route, onContact }: { route: string; onContact
       <section className="student-card" data-reveal>
         <div className="student-card__top"><span>YOUR SPACE</span><span className="student-card__status"><i /> Signed in</span></div>
         <div className="student-card__identity">
-          <span className="student-card__avatar" aria-hidden="true">LA</span>
-          <div><p>{STUDENT_PROFILE.displayName}</p><span>{STUDENT_PROFILE.role}</span></div>
+          <span className="student-card__avatar" aria-hidden="true">{initials}</span>
+          <div><p>{student?.name}</p><span>{student?.role}</span></div>
           <BookOpen aria-hidden="true" className="ml-auto size-5 text-white/55" />
         </div>
         <div className="student-card__rule" />
       </section>
 
       <section className="sidebar-panel" data-reveal>
-        <div className="sidebar-panel__heading"><span>WORKSPACE</span><span>01—02</span></div>
+        <div className="sidebar-panel__heading"><span>WORKSPACE</span><span>01—03</span></div>
         <nav aria-label="Student menu" className="space-y-1">
           {items.map((item, index) => {
             const Icon = item.icon

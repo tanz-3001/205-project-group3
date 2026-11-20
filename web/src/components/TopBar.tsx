@@ -1,7 +1,8 @@
-import { Bell, ChevronDown, MessageSquare, Search, Sparkles } from "lucide-react"
+import { Bell, ChevronDown, LogOut, MessageSquare, Search, Sparkles } from "lucide-react"
 import type { MouseEvent } from "react"
 import { useApp } from "@/lib/app-context"
-import { PAGES, STUDENT_PROFILE } from "@/lib/data"
+import { useAuth } from "@/lib/auth"
+import { PAGES } from "@/lib/data"
 import { go } from "@/lib/route"
 
 const tab = (on: boolean) =>
@@ -15,12 +16,18 @@ function focusAsk() {
   window.setTimeout(() => document.getElementById("ask-input")?.focus(), 60)
 }
 
+function focusAssist() {
+  go("assist")
+  window.setTimeout(() => document.getElementById("assist-input")?.focus(), 80)
+}
+
 export default function TopBar({ route }: { route: string }) {
   const { requests } = useApp()
+  const { student, signOut } = useAuth()
   const open = requests.filter((r) => r.status !== "Resolved").length
   const current = PAGES.find((p) => p.slug === route)
   const academic = PAGES.filter((p) => p.nav === "academic")
-  const initials = STUDENT_PROFILE.displayName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)
+  const initials = (student?.name ?? "").split(/\s+/).map((part) => part[0]).join("").slice(0, 2)
   const closeMenu = (e: MouseEvent<HTMLElement>) => e.currentTarget.closest("details")?.removeAttribute("open")
 
   return (
@@ -38,6 +45,7 @@ export default function TopBar({ route }: { route: string }) {
         </a>
         <nav aria-label="Services" className="order-3 flex w-full flex-wrap items-center gap-1 pb-3 sm:order-none sm:ml-2 sm:w-auto sm:flex-1 sm:pb-0">
           <a href="#ask" aria-current={route === "ask" ? "page" : undefined} className={tab(route === "ask")}>Overview</a>
+          <a href="#assist" aria-current={route === "assist" ? "page" : undefined} className={tab(route === "assist")}>Synapse Assist</a>
           <details className="group relative shrink-0">
             <summary className={tab(current?.nav === "academic") + " cursor-pointer list-none [&::-webkit-details-marker]:hidden"}>
               Academic <ChevronDown aria-hidden="true" className="size-3.5 transition-transform group-open:rotate-180" />
@@ -62,11 +70,15 @@ export default function TopBar({ route }: { route: string }) {
             {open > 0 && <span className="absolute right-1 top-1 grid min-h-[17px] min-w-[17px] place-items-center rounded-full bg-[#f1bd61] px-1 text-[0.6rem] font-bold text-[#30240f]">{open}</span>}
           </button>
           <span className="mx-1 h-7 w-px bg-white/15" />
-          <button aria-label={`Signed in as ${STUDENT_PROFILE.displayName}`} className="flex h-10 items-center gap-2 rounded-xl px-1.5 transition-colors hover:bg-white/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">
+          <details className="group relative"><summary aria-label={`Signed in as ${student?.name}. Open account menu`} className="flex h-10 cursor-pointer list-none items-center gap-2 rounded-xl px-1.5 transition-colors hover:bg-white/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 [&::-webkit-details-marker]:hidden">
             <span className="grid size-8 place-items-center rounded-[11px] bg-[#e7c77f] text-xs font-bold text-[#3d381f]">{initials}</span>
-            <span className="hidden text-left leading-tight xl:block"><span className="block text-xs font-semibold">{STUDENT_PROFILE.displayName}</span><span className="mt-1 block text-[0.65rem] text-white/55">{STUDENT_PROFILE.role}</span></span>
-          </button>
-          <button aria-label="Ask Synapse" onClick={focusAsk} className="ml-1 hidden h-10 items-center gap-2 rounded-xl bg-[#f4c86f] px-3.5 text-xs font-bold text-[#253b35] transition-colors hover:bg-[#ffda8c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:inline-flex">
+            <span className="hidden text-left leading-tight xl:block"><span className="block text-xs font-semibold">{student?.name}</span><span className="mt-1 block text-[0.65rem] text-white/55">{student?.role}</span></span>
+          </summary>
+            <div className="absolute right-0 top-[calc(100%+10px)] z-50 w-48 rounded-2xl border border-line bg-white p-2 text-ink shadow-[0_18px_55px_-24px_rgba(10,35,40,0.35)]">
+              <button onClick={signOut} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-sm font-medium hover:bg-brand-soft hover:text-brand"><LogOut aria-hidden="true" className="size-4" />Sign out</button>
+            </div>
+          </details>
+          <button aria-label="Ask Synapse" onClick={focusAssist} className="ml-1 hidden h-10 items-center gap-2 rounded-xl bg-[#f4c86f] px-3.5 text-xs font-bold text-[#253b35] transition-colors hover:bg-[#ffda8c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:inline-flex">
             <MessageSquare aria-hidden="true" className="size-4" /> Ask
           </button>
         </div>

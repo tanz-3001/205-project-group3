@@ -4,9 +4,12 @@ import type { ContactState } from "@/components/ContactDialog"
 import Sidebar from "@/components/Sidebar"
 import TopBar from "@/components/TopBar"
 import { AppProvider } from "@/lib/app-context"
+import { AuthProvider, useAuth } from "@/lib/auth"
 import { PAGES } from "@/lib/data"
 import { useHash } from "@/lib/route"
+import Assist from "@/pages/Assist"
 import Dashboard from "@/pages/Dashboard"
+import Login from "@/pages/Login"
 import Requests from "@/pages/Requests"
 import TopicPage from "@/pages/TopicPage"
 
@@ -45,7 +48,7 @@ function Shell() {
       cancelAnimationFrame(frame)
     }
   }, [route])
-  const openContact = (category: string | null, q: string) => setContact({ category, q })
+  const openContact = (category: string | null, q: string, transcript?: string[]) => setContact({ category, q, transcript })
   const closeContact = (sent: boolean) => {
     setContact(null)
     if (sent) {
@@ -61,7 +64,7 @@ function Shell() {
       <div className="mx-auto grid max-w-[1440px] items-start gap-6 px-4 pb-16 pt-6 sm:px-7 lg:grid-cols-[270px_minmax(0,1fr)] lg:gap-8 lg:px-10 lg:pt-9">
         <div className="lg:sticky lg:top-[108px]"><Sidebar route={route} onContact={openContact} /></div>
         <main className="min-w-0">
-          {page ? <TopicPage key={page.slug} page={page} onContact={openContact} /> : route === "requests" ? <Requests /> : <Dashboard onContact={openContact} />}
+          {page ? <TopicPage key={page.slug} page={page} onContact={openContact} /> : route === "assist" ? <Assist onContact={openContact} /> : route === "requests" ? <Requests /> : <Dashboard onContact={openContact} />}
           <p className="mt-8 border-t border-line/80 pt-4 text-xs text-muted-ink">Synapse student services <span className="px-1.5 text-brand/70">/</span> Sample content. Replace with approved FAQs.</p>
         </main>
       </div>
@@ -71,10 +74,20 @@ function Shell() {
   )
 }
 
-export default function App() {
+function Gate() {
+  const { student } = useAuth()
+  if (!student) return <Login />
   return (
-    <AppProvider>
+    <AppProvider key={student.id} studentId={student.id}>
       <Shell />
     </AppProvider>
+  )
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <Gate />
+    </AuthProvider>
   )
 }
