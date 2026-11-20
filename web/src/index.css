@@ -128,3 +128,17 @@
     @apply font-sans;
     }
 }
+
+
+/* ---- Synapse theme: paste at the very END of src/index.css ---- */
+@theme {
+  --color-brand: #0b6b63;
+  --color-brand-dark: #085249;
+  --color-brand-soft: #ddf0ec;
+  --color-ink: #17323a;
+  --color-navy: #0b3c49;
+  --color-muted-ink: #53686c;
+  --color-line: #d6e2df;
+  --color-page: #f1f6f5;
+  --color-amber-badge: #f2b134;
+}
