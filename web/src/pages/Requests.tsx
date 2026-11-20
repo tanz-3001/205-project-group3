@@ -36,6 +36,7 @@ export default function Requests() {
                 </div>
                 <h2>{r.q}</h2>
                 <p className="request-card__date"><Clock3 aria-hidden="true" className="size-3.5" /> Sent {fmt(r.at)}</p>
+                {r.transcript && <p className="request-card__date">Conversation shared with staff</p>}
                 <RequestStepper status={r.status} reply={r.reply} />
                 {r.reply && <div className="request-reply"><MessageCircle aria-hidden="true" className="size-[18px]" /><div><strong>Staff reply</strong><p>{r.reply}</p></div></div>}
               </article>

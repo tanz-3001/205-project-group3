@@ -8,7 +8,8 @@ import SupportMap from "@/components/SupportMap"
 import { useApp } from "@/lib/app-context"
 import { ask } from "@/lib/assist"
 import type { Outcome } from "@/lib/assist"
-import { FAQS, STUDENT_PROFILE, TINTS, TOPIC_PAGES } from "@/lib/data"
+import { useAuth } from "@/lib/auth"
+import { FAQS, TINTS, TOPIC_PAGES } from "@/lib/data"
 import type { FAQ } from "@/lib/data"
 
 const CHIPS = ["Reset my password", "Pay my fees", "Add or drop a course", "Exam schedule"]
@@ -42,7 +43,8 @@ export default function Dashboard({ onContact }: { onContact: (category: string 
   const [out, setOut] = useState<Outcome | null>(null)
   const [rated, setRated] = useState<boolean | null>(null)
   const [filter, setFilter] = useState("")
-  const firstName = STUDENT_PROFILE.displayName.trim().split(/\s+/)[0]
+  const { student } = useAuth()
+  const firstName = (student?.name ?? "").trim().split(/\s+/)[0]
 
   const showFaq = (faq: FAQ) => {
     setRated(null)
