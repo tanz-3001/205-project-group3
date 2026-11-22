@@ -11,4 +11,6 @@ __pycache__/
 knowledge/data/
 knowledge/.env
 web/.env
+.vercel
+
 

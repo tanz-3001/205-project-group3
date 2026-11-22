@@ -296,12 +296,55 @@ def audit_log(limit: int = Query(default=100, ge=1, le=500), user: User = Depend
                              "timestamp": iso(r.timestamp), "metadata": r.metadata_json} for r in rows]}
 
 
+def _auto_seed_sample_docs(ctx: AppContext) -> None:
+    """On Vercel cold start with an empty SQLite DB, seed the bundled sample university documents."""
+    from .config import BASE_DIR
+    sample_dir = BASE_DIR / "sample_docs"
+    if not sample_dir.is_dir() or ctx.embedder is None:
+        return
+    with ctx.db.session() as s:
+        if (s.scalar(select(func.count()).select_from(Document)) or 0) > 0:
+            return
+    for path in sorted(sample_dir.iterdir()):
+        if not path.is_file():
+            continue
+        try:
+            data = path.read_bytes()
+            v = validate_upload(path.name, None, data, ctx.settings.max_upload_bytes)
+            checksum = hashlib.sha256(data).hexdigest()
+            key = ctx.storage.save(data, v.file_type)
+            with ctx.db.session() as s:
+                doc = Document(
+                    filename=v.filename,
+                    display_name=display_name_from(v.filename),
+                    file_type=v.file_type,
+                    mime_type=v.mime_type,
+                    file_size=len(data),
+                    checksum=checksum,
+                    storage_key=key,
+                    uploaded_by="u_2",
+                    uploaded_by_name="Demo Admin",
+                )
+                s.add(doc)
+                s.flush()
+                job = ctx.processor.enqueue(s, doc, "upload")  # type: ignore[union-attr]
+                s.add(AuditLog(actor_id="u_2", actor_role="admin", action="seed_upload", document_id=doc.id, metadata_json={"filename": v.filename}))
+                s.flush()
+                doc_id, job_id = doc.id, job.id
+            ctx.submit(doc_id, job_id)
+        except Exception:
+            log.exception("failed to auto-seed %s", path.name)
+
+
 # ---------------------------------------------------------------- app factory
 def create_app(settings: Settings | None = None, *, embedder: EmbeddingProvider | None | str = "auto", llm: object | None | str = "auto",
-               guard: GuardClient | None = None, sync_processing: bool = False) -> FastAPI:
+               guard: GuardClient | None = None, sync_processing: bool | None = None) -> FastAPI:
+    import os
     from .vectorstore import VectorStore
 
     settings = settings or load_settings()
+    if sync_processing is None:
+        sync_processing = bool(os.environ.get("VERCEL"))
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     db = Database(settings)
     db.migrate()
@@ -316,8 +359,14 @@ def create_app(settings: Settings | None = None, *, embedder: EmbeddingProvider 
     if settings.cors_origins:
         app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_methods=["GET", "POST", "DELETE"], allow_headers=["Authorization", "Content-Type"])
 
+    _seeded = False
+
     @app.middleware("http")
     async def limit_body(request: Request, call_next):  # noqa: ANN001, ANN202
+        nonlocal _seeded
+        if not _seeded and os.environ.get("VERCEL") and not request.url.path.endswith("/health"):
+            _seeded = True
+            _auto_seed_sample_docs(ctx)
         cl = request.headers.get("content-length")
         if cl and cl.isdigit() and int(cl) > settings.max_upload_bytes + 1024 * 1024:
             return JSONResponse(status_code=413, content={"error": {"code": "file_too_large", "message": f"Files must be smaller than {settings.max_upload_mb} MB."}})

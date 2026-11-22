@@ -116,10 +116,14 @@ def load_settings() -> Settings:
         return {"gemini": env.get("GEMINI_API_KEY", ""), "openai": env.get("OPENAI_API_KEY", ""), "anthropic": env.get("ANTHROPIC_API_KEY", "")}.get(p, "")
 
     storage = env.get("KNOWLEDGE_STORAGE_PATH")
+    is_vercel = bool(env.get("VERCEL"))
+    default_db = "sqlite:////tmp/synapse_knowledge.db" if is_vercel else f"sqlite:///{(BASE_DIR / 'data' / 'knowledge.db').as_posix()}"
+    default_storage = Path("/tmp/synapse_uploads") if is_vercel else (BASE_DIR / "data" / "uploads")
+    default_jwt = env.get("JWT_SECRET") or ("dev-only-secret-change-me" if is_vercel else "")
     return Settings(
-        database_url=env.get("DATABASE_URL", f"sqlite:///{(BASE_DIR / 'data' / 'knowledge.db').as_posix()}"),
-        storage_path=Path(storage) if storage else BASE_DIR / "data" / "uploads",
-        jwt_secret=env.get("JWT_SECRET", ""),
+        database_url=env.get("DATABASE_URL", default_db),
+        storage_path=Path(storage) if storage else default_storage,
+        jwt_secret=default_jwt,
         admin_roles=_list("KNOWLEDGE_ADMIN_ROLES", "admin"),
         chat_roles=_list("KNOWLEDGE_CHAT_ROLES", "student,admin"),
         guard_api_url=env.get("GUARD_API_URL", "").rstrip("/"),
