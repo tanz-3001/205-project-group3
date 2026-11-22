@@ -7,9 +7,10 @@ import { AppProvider } from "@/lib/app-context"
 import { AuthProvider, useAuth } from "@/lib/auth"
 import { PAGES } from "@/lib/data"
 import { useHash } from "@/lib/route"
+import AdminDashboard from "@/pages/AdminDashboard"
+import AdminLogin from "@/pages/AdminLogin"
 import Assist from "@/pages/Assist"
 import Dashboard from "@/pages/Dashboard"
-import Knowledge from "@/pages/Knowledge"
 import Login from "@/pages/Login"
 import Requests from "@/pages/Requests"
 import TopicPage from "@/pages/TopicPage"
@@ -65,7 +66,7 @@ function Shell() {
       <div className="mx-auto grid max-w-[1440px] items-start gap-6 px-4 pb-16 pt-6 sm:px-7 lg:grid-cols-[270px_minmax(0,1fr)] lg:gap-8 lg:px-10 lg:pt-9">
         <div className="lg:sticky lg:top-[108px]"><Sidebar route={route} onContact={openContact} /></div>
         <main className="min-w-0">
-          {page ? <TopicPage key={page.slug} page={page} onContact={openContact} /> : route === "assist" ? <Assist onContact={openContact} /> : route === "requests" ? <Requests /> : route === "knowledge" ? <Knowledge /> : <Dashboard onContact={openContact} />}
+          {page ? <TopicPage key={page.slug} page={page} onContact={openContact} /> : route === "assist" ? <Assist onContact={openContact} /> : route === "requests" ? <Requests /> : <Dashboard onContact={openContact} />}
           <p className="mt-8 border-t border-line/80 pt-4 text-xs text-muted-ink">Synapse student services <span className="px-1.5 text-brand/70">/</span> Sample content. Replace with approved FAQs.</p>
         </main>
       </div>
@@ -76,7 +77,10 @@ function Shell() {
 }
 
 function Gate() {
-  const { student } = useAuth()
+  const route = useHash()
+  const { student, admin } = useAuth()
+  // The admin dashboard is only ever rendered for a verified admin session; everyone else gets the admin sign-in.
+  if (route === "admin") return admin ? <AdminDashboard admin={admin} /> : <AdminLogin />
   if (!student) return <Login />
   return (
     <AppProvider key={student.id} studentId={student.id}>

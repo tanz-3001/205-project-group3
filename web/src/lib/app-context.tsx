@@ -1,11 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react"
 import type { ReactNode } from "react"
-import type { Citation } from "./assist"
 
 export type Status = "Waiting for staff" | "In progress" | "Resolved"
 export type Req = { id: number; q: string; tag: string; at: number; status: Status; reply?: string; transcript?: string[] }
-export type Entry = { q: string; tag: string; type: "answered" | "escalated" | "unknown"; at: number }
-export type Msg = { r: "u" | "a"; t: string; k?: "answer" | "escalate"; src?: string[]; cites?: Citation[]; category?: string; urgent?: boolean }
+export type Entry = { q: string; tag: string; type: "answered" | "escalated" | "unknown"; at: number; /** how long the portal took to respond, in ms */ ms?: number; /** where the question was asked */ via?: "ask" | "assist" }
+export type Msg = { r: "u" | "a"; t: string; k?: "answer" | "escalate"; src?: string[]; category?: string; urgent?: boolean }
 export type Chat = { id: number; title: string; at: number; msgs: Msg[] }
 type State = { requests: Req[]; log: Entry[]; ratings: boolean[]; chats: Chat[] }
 type Ctx = State & {

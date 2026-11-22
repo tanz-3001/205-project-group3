@@ -49,18 +49,20 @@ export default function Dashboard({ onContact }: { onContact: (category: string 
   const showFaq = (faq: FAQ) => {
     setRated(null)
     setOut({ kind: "answer", faq })
-    addEntry({ q: faq.q, tag: faq.topic, type: "answered" })
+    addEntry({ q: faq.q, tag: faq.topic, type: "answered", via: "ask" })
   }
   const run = (raw: string) => {
     const q = raw.trim()
     if (!q) return
     setAsked(q)
     setRated(null)
+    const t0 = performance.now()
     const o = ask(q)
+    const ms = Math.round((performance.now() - t0) * 10) / 10
     setOut(o)
-    if (o.kind === "answer") addEntry({ q: o.faq.q, tag: o.faq.topic, type: "answered" })
-    else if (o.kind === "escalate") addEntry({ q, tag: o.category, type: "escalated" })
-    else addEntry({ q, tag: "General", type: "unknown" })
+    if (o.kind === "answer") addEntry({ q: o.faq.q, tag: o.faq.topic, type: "answered", ms, via: "ask" })
+    else if (o.kind === "escalate") addEntry({ q, tag: o.category, type: "escalated", ms, via: "ask" })
+    else addEntry({ q, tag: "General", type: "unknown", ms, via: "ask" })
   }
   const submit = (e: FormEvent) => {
     e.preventDefault()
