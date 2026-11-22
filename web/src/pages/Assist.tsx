@@ -8,7 +8,14 @@ import type { Chat, Msg } from "@/lib/app-context"
 import { answerChat, sourceById } from "@/lib/assist"
 import { useAuth } from "@/lib/auth"
 
-const STARTERS = ["How do I add or drop a course?", "What are my tuition payment options?", "How do I reset my password?", "What is the late submission policy?"]
+const STARTERS = [
+  "What is the late submission policy?",
+  "When are the Fall 2026 add/drop and final exam dates?",
+  "What are the library opening hours and study room rules?",
+  "What are the campus housing fees and shuttle bus routes?",
+  "How do credit-bearing internships and on-campus jobs work?",
+  "How do I connect to campus Wi-Fi and use campus printing?",
+]
 type Props = { onContact: (category: string | null, q: string, transcript?: string[]) => void }
 const toTranscript = (m: Msg[]) => m.map((x) => (x.r === "u" ? "Student: " : "Assist: ") + x.t)
 

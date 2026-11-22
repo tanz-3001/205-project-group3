@@ -67,23 +67,25 @@ class GeminiLLM:
 
     def generate(self, system: str, prompt: str) -> str:
         body = {"systemInstruction": {"parts": [{"text": system}]}, "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.1, "responseMimeType": "application/json", "maxOutputTokens": 2048}}
-        models = [self.model] + [m for m in ("gemini-2.5-flash", "gemini-2.5-flash-lite") if m != self.model]
-        last_status = 0
+                "generationConfig": {"responseMimeType": "application/json", "maxOutputTokens": 2048}}
+        models = [self.model] + [m for m in ("gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-flash-latest") if m != self.model]
+        last_err = "unreachable"
         for model in models:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
             try:
                 r = self._client.post(url, json=body, headers={"x-goog-api-key": self._key})
             except httpx.HTTPError as exc:
-                raise LLMError("unreachable") from exc
+                last_err = type(exc).__name__
+                log.warning("gemini (%s) network error: %s", model, exc)
+                continue
             if r.status_code == 200:
                 parts = (r.json().get("candidates") or [{}])[0].get("content", {}).get("parts", [])
                 return "".join(p.get("text", "") for p in parts if not p.get("thought"))
-            last_status = r.status_code
+            last_err = f"HTTP {r.status_code}"
             log.warning("gemini (%s) HTTP %s: %s", model, r.status_code, r.text[:300])
-            if r.status_code not in (429, 500, 502, 503, 504):
+            if r.status_code not in (404, 429, 500, 502, 503, 504):
                 break
-        raise LLMError(f"HTTP {last_status}")
+        raise LLMError(last_err)
 
 
 class AnthropicLLM:

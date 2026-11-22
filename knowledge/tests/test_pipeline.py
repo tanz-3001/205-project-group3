@@ -172,6 +172,18 @@ class TestChunking:
         assert len(chunks) >= 5 and all(c.token_count <= 100 for c in chunks)
 
     def test_real_documents(self):
-        for name, kind in [("Academic_Regulations_2026.pdf", "pdf"), ("Student_Handbook_2026.docx", "docx"), ("IT_Help_Desk_FAQ.txt", "txt")]:
+        expected = [
+            ("Academic_Regulations_2026.pdf", "pdf"),
+            ("Academic_Calendar_2026_2027.pdf", "pdf"),
+            ("Library_and_Research_Services_Guide_2026.pdf", "pdf"),
+            ("Graduation_and_Academic_Honours_Guide_2026.pdf", "pdf"),
+            ("Student_Handbook_2026.docx", "docx"),
+            ("Campus_Housing_and_Transport_Guide_2026.docx", "docx"),
+            ("Careers_Internships_and_Placements_Guide_2026.docx", "docx"),
+            ("IT_Help_Desk_FAQ.txt", "txt"),
+            ("Health_Safety_and_Accessibility_Services.txt", "txt"),
+            ("Exchange_and_Study_Abroad_Handbook_2026.txt", "txt"),
+        ]
+        for name, kind in expected:
             chunks = chunk_blocks(extract(kind, sample(name)).blocks, 500, 100, name)
-            assert chunks and all(estimate_tokens(c.content) <= 500 for c in chunks)
+            assert chunks and all(estimate_tokens(c.content) <= 500 for c in chunks), name

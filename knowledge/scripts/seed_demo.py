@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT))
 
 from app.config import load_settings  # noqa: E402
 from app.main import create_app  # noqa: E402
-from app.models import AuditLog, Document  # noqa: E402
+from app.models import AuditLog, Document, DocumentFile  # noqa: E402
 from app.validation import display_name_from, validate_upload  # noqa: E402
 from scripts.make_sample_docs import OUT as SAMPLE_DIR, main as make_samples  # noqa: E402
 
@@ -54,6 +54,7 @@ def main() -> None:
             )
             s.add(doc)
             s.flush()
+            s.add(DocumentFile(document_id=doc.id, data=data))
             job = ctx.processor.enqueue(s, doc, "upload")
             s.add(AuditLog(actor_id="u_2", actor_role="admin", action="seed_upload", document_id=doc.id, metadata_json={"filename": v.filename}))
             s.flush()

@@ -23,3 +23,19 @@ Students can install the office suite on up to 5 personal devices at no cost whi
 ## Contacting the IT Help Desk
 
 The IT Help Desk is in the Library, Level 1, and is open Sunday to Thursday from 8:00 to 18:00. Requests can also be raised through Synapse at any time.
+
+## Campus printing and scanning
+
+Each enrolled student receives an automatic print quota of AED 40 (equivalent to 400 black-and-white pages or 100 colour pages) at the start of each regular semester. Unused quota does not roll over between academic years; top-ups can be made at Library Kiosks or in the Print Portal. Follow-Me printers across Buildings A, B, C, and D release jobs when you tap your Student ID card within 24 hours of submission. Colour printing costs AED 0.40 per side and monochrome costs AED 0.10 per side; scanning to university email is free.
+
+## Learning Management System (SynapseLearn)
+
+All course syllabi, recorded lectures, announcements, and assignment dropboxes live on SynapseLearn. Courses appear on your dashboard automatically within 2 hours of completing registration in the student portal. Turnitin similarity checking runs on major written coursework; students may review their draft similarity report once up to 24 hours before the final submission deadline.
+
+## Campus VPN and remote lab access
+
+To reach engineering CAD licences, SPSS, MATLAB, or on-campus library servers from off campus, install the university VPN client (GlobalConnect) from the IT Downloads page and sign in using MFA. Split-tunnel mode routes only university resources through the VPN so personal streaming stays fast. High-performance virtual lab desktops can also be launched directly in any modern web browser via vlab.synapse.edu.example.
+
+## University email and cloud storage
+
+Your university email address and 1 TB of encrypted cloud drive storage remain active throughout enrolment and for 12 months after graduation. Large files over 25 MB should be shared via a cloud drive link rather than attached to email. Report suspected phishing emails immediately by clicking Report Phish in the toolbar or forwarding to security-desk@synapse.edu.example.

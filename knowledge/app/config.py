@@ -126,7 +126,7 @@ def load_settings() -> Settings:
     llm = env.get("LLM_PROVIDER", "").strip().lower()
     if not llm:
         llm = "gemini" if env.get("GEMINI_API_KEY") else ("anthropic" if env.get("ANTHROPIC_API_KEY") else "none")
-    llm_defaults = {"gemini": "gemini-flash-latest", "anthropic": env.get("ANTHROPIC_MODEL", "claude-sonnet-5-5")}
+    llm_defaults = {"gemini": "gemini-flash-lite-latest", "anthropic": env.get("ANTHROPIC_MODEL", "claude-sonnet-5-5")}
 
     def provider_key(p: str, explicit: str) -> str:
         if env.get(explicit):

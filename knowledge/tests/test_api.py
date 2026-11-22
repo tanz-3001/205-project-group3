@@ -614,3 +614,34 @@ class TestPortalPersistenceAndRequests:
         assert client.delete(f"{KB}/documents/{doc['id']}", headers=auth("admin")).status_code == 200
         with client.app.state.ctx.db.session() as s:
             assert s.get(DocumentFile, doc["id"]) is None
+
+
+def test_all_ten_sample_documents_index_and_retrieve(client):
+    from conftest import SAMPLES
+
+    sample_files = sorted(p for p in SAMPLES.iterdir() if p.is_file())
+    assert len(sample_files) == 10
+
+    for p in sample_files:
+        mime = "application/pdf" if p.suffix == ".pdf" else ("text/plain" if p.suffix == ".txt" else "")
+        r = upload(client, p.name, p.read_bytes(), mime)
+        assert r.status_code == 201, f"{p.name}: {r.text}"
+
+    docs = client.get(f"{KB}/documents", headers=auth("admin")).json()["documents"]
+    assert len(docs) == 10
+    assert all(d["processing_status"] == "indexed" and d["chunk_count"] > 0 for d in docs)
+
+    checks = [
+        ("North Hall East Residences shuttle bus Metro Station", "Campus Housing and Transport Guide 2026"),
+        ("Group Study Rooms reservation 15 minutes", "Library and Research Services Guide 2026"),
+        ("Fall Semester 2026 final examinations December", "Academic Calendar 2026 2027"),
+        ("credit bearing internship 240 supervised workplace hours", "Careers Internships and Placements Guide 2026"),
+        ("Magna Cum Laude Summa diploma commencement", "Graduation and Academic Honours Guide 2026"),
+        ("extra examination time quiet room learning accommodations", "Health Safety and Accessibility Services"),
+        ("semester exchange Global Mobility Transfer Pass learning agreement", "Exchange and Study Abroad Handbook 2026"),
+    ]
+    for query_text, expected_doc in checks:
+        sr = client.post(f"{KB}/search", json={"query": query_text, "top_k": 5}, headers=auth("admin"))
+        assert sr.status_code == 200, sr.text
+        names = [res["document_name"] for res in sr.json()["results"]]
+        assert expected_doc in names, f"Expected '{expected_doc}' in {names} for query '{query_text}'"
