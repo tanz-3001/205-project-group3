@@ -1,18 +1,20 @@
-import { ArrowRight, BookOpen, Coins, FileText, HeartPulse, Monitor, Search, ThumbsDown, ThumbsUp } from "lucide-react"
+import { ArrowRight, BookOpen, Coins, HeartHandshake, HeartPulse, Monitor, Search, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react"
 import { useState } from "react"
 import type { FormEvent, ReactNode } from "react"
+import { CitedText, SourceList } from "@/components/AssistSources"
 import { Button } from "@/components/ui/button"
 import { PromptComposer } from "@/components/ui/prompt-composer"
 import { Suggestions } from "@/components/ui/suggestions"
 import SupportMap from "@/components/SupportMap"
 import { useApp } from "@/lib/app-context"
-import { ask } from "@/lib/assist"
-import type { Outcome } from "@/lib/assist"
+import type { Chat, Msg } from "@/lib/app-context"
+import { answerChat, sourceById } from "@/lib/assist"
+import type { Reply } from "@/lib/assist"
 import { useAuth } from "@/lib/auth"
 import { FAQS, TINTS, TOPIC_PAGES } from "@/lib/data"
-import type { FAQ } from "@/lib/data"
+import { go } from "@/lib/route"
 
-const CHIPS = ["Reset my password", "Pay my fees", "Add or drop a course", "Exam schedule"]
+const CHIPS = ["Add or drop a course", "Library hours & study rooms", "Campus shuttle & housing", "Reset my password"]
 const SERVICE_ROUTES = [
   { label: "Courses", href: "#enrollment", icon: BookOpen, position: "hero-network__node--northwest" },
   { label: "Fees", href: "#fees", icon: Coins, position: "hero-network__node--northeast" },
@@ -20,14 +22,15 @@ const SERVICE_ROUTES = [
   { label: "Wellbeing", href: "#support", icon: HeartPulse, position: "hero-network__node--southeast" },
 ]
 const label = (t: string) => (t === "IT" ? "IT Support" : t)
+const toTranscript = (m: Msg[]) => m.map((x) => (x.r === "u" ? "Student: " : "Assist: ") + x.t)
 
 function Tag({ topic }: { topic: string }) {
-  const t = TINTS[topic] ?? ["#E6E9EF", "#1A2233"]
+  const t = TINTS[topic] ?? ["#D6ECEA", "#0B6B63"]
   return <span className="ml-6 mt-5 inline-block rounded-md px-3 py-0.5 text-[0.82rem] font-bold" style={{ background: t[0], color: t[1] }}>{label(topic)}</span>
 }
 
 function Card({ topic, children }: { topic: string; children: ReactNode }) {
-  const t = TINTS[topic] ?? ["#E6E9EF", "#1A2233"]
+  const t = TINTS[topic] ?? ["#D6ECEA", "#0B6B63"]
   return (
     <article className="mb-3 overflow-hidden rounded-xl border border-t-4 border-line bg-white animate-in fade-in slide-in-from-bottom-2 duration-300" style={{ borderTopColor: t[1] }}>
       <Tag topic={topic} />
@@ -36,41 +39,62 @@ function Card({ topic, children }: { topic: string; children: ReactNode }) {
   )
 }
 
-export default function Dashboard({ onContact }: { onContact: (category: string | null, q: string) => void }) {
-  const { addEntry, rate } = useApp()
+export default function Dashboard({ onContact }: { onContact: (category: string | null, q: string, transcript?: string[]) => void }) {
+  const { addEntry, rate, saveChat, setActiveChatId } = useApp()
   const [text, setText] = useState("")
-  const [asked, setAsked] = useState("")
-  const [out, setOut] = useState<Outcome | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [asking, setAsking] = useState("")
+  const [result, setResult] = useState<{ q: string; reply: Reply; chat: Chat } | null>(null)
   const [rated, setRated] = useState<boolean | null>(null)
   const [filter, setFilter] = useState("")
   const { student } = useAuth()
   const firstName = (student?.name ?? "").trim().split(/\s+/)[0]
 
-  const showFaq = (faq: FAQ) => {
+  const run = async (raw: string) => {
+    const q = raw.trim().slice(0, 500)
+    if (!q || busy) return
+    setAsking(q)
+    setResult(null)
     setRated(null)
-    setOut({ kind: "answer", faq })
-    addEntry({ q: faq.q, tag: faq.topic, type: "answered", via: "ask" })
-  }
-  const run = (raw: string) => {
-    const q = raw.trim()
-    if (!q) return
-    setAsked(q)
-    setRated(null)
+    setBusy(true)
     const t0 = performance.now()
-    const o = ask(q)
-    const ms = Math.round((performance.now() - t0) * 10) / 10
-    setOut(o)
-    if (o.kind === "answer") addEntry({ q: o.faq.q, tag: o.faq.topic, type: "answered", ms, via: "ask" })
-    else if (o.kind === "escalate") addEntry({ q, tag: o.category, type: "escalated", ms, via: "ask" })
-    else addEntry({ q, tag: "General", type: "unknown", ms, via: "ask" })
+    try {
+      const reply = await answerChat(q, [], student?.token)
+      const ms = Math.round(performance.now() - t0)
+      const msg: Msg =
+        reply.k === "answer"
+          ? { r: "a", k: "answer", t: reply.text, src: reply.src, ...(reply.cites ? { cites: reply.cites } : {}) }
+          : { r: "a", k: "escalate", t: reply.text, category: reply.category, urgent: reply.urgent }
+      const now = Date.now()
+      const newChat: Chat = { id: now, title: q.slice(0, 48), at: now, msgs: [{ r: "u", t: q }, msg] }
+      saveChat(newChat)
+      setActiveChatId(newChat.id)
+      addEntry({
+        q,
+        tag: reply.k === "answer" ? (reply.cites ? "Knowledge base" : (sourceById(reply.src[0])?.topic ?? "General")) : reply.category,
+        type: reply.k === "answer" ? "answered" : reply.unknown ? "unknown" : "escalated",
+        ms,
+        via: "ask",
+      })
+      setResult({ q, reply, chat: newChat })
+    } finally {
+      setBusy(false)
+    }
   }
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    run(text)
+    void run(text)
   }
 
   const f = filter.trim().toLowerCase()
   const topics = TOPIC_PAGES.filter((p) => !f || p.title.toLowerCase().includes(f) || FAQS.some((x) => x.topic === p.topic && (x.q + " " + x.keywords).toLowerCase().includes(f)))
+
+  const answerTopic =
+    result?.reply.k === "answer"
+      ? result.reply.cites
+        ? "Knowledge base"
+        : (sourceById(result.reply.src[0])?.topic ?? "General")
+      : "Support"
 
   return (
     <div>
@@ -80,10 +104,10 @@ export default function Dashboard({ onContact }: { onContact: (category: string 
           <p className="home-hero__eyebrow"><span className="home-hero__eyebrow-mark">S</span> STUDENT SERVICES</p>
           <h1 className="home-hero__title">Hi, <em>{firstName}.</em></h1>
           <p className="home-hero__description">Ask your question. Find your answer.</p>
-          <PromptComposer value={text} onValueChange={setText} onSubmit={submit} />
+          <PromptComposer value={text} busy={busy} onValueChange={setText} onSubmit={submit} />
           <div className="home-hero__suggestions">
             <span>TRY ASKING</span>
-            <Suggestions variant="dark" items={CHIPS.map((label) => ({ id: label, label }))} onSelect={(item) => { setText(item.label); run(item.label) }} />
+            <Suggestions variant="dark" items={CHIPS.map((chip) => ({ id: chip, label: chip }))} onSelect={(item) => { if (busy) return; setText(item.label); void run(item.label) }} />
           </div>
         </div>
         <div className="hero-network" aria-label="Service map: courses, fees, IT support, and wellbeing">
@@ -109,12 +133,26 @@ export default function Dashboard({ onContact }: { onContact: (category: string 
       </section>
 
       <div aria-live="polite" data-reveal>
-        {out?.kind === "answer" && (
-          <Card topic={out.faq.topic}>
-            <h2 className="mb-2.5 text-2xl font-bold leading-tight text-navy">{out.faq.q}</h2>
-            <p className="mb-4 max-w-[64ch] text-lg leading-relaxed">{out.faq.a}</p>
-            <p className="mb-5 inline-flex items-center gap-2 rounded-md border border-dashed border-[#A9BDB9] px-3 py-1.5 text-sm text-muted-ink"><FileText className="size-4" />Source: {out.faq.source}</p>
-            <div className="flex flex-wrap items-center gap-2.5">
+        {busy && (
+          <Card topic="Synapse Assist">
+            <h2 className="mb-2 flex items-center gap-2 text-2xl font-bold leading-tight text-navy">
+              <Sparkles aria-hidden="true" className="size-5 text-brand" />
+              {asking}
+            </h2>
+            <p className="flex items-center gap-2.5 text-muted-ink">
+              <span className="size-2.5 animate-pulse rounded-full bg-brand" />
+              Checking official university sources with Synapse Assist…
+            </p>
+          </Card>
+        )}
+        {!busy && result?.reply.k === "answer" && (
+          <Card topic={answerTopic}>
+            <h2 className="mb-2.5 text-2xl font-bold leading-tight text-navy">{result.q}</h2>
+            <p className="mb-4 max-w-[64ch] text-lg leading-relaxed">
+              <CitedText text={result.reply.text} src={result.reply.src} />
+            </p>
+            <SourceList src={result.reply.src} cites={result.reply.cites} />
+            <div className="mt-4 flex flex-wrap items-center gap-2.5">
               {rated === null ? (
                 <>
                   <span className="font-semibold">Was this helpful?</span>
@@ -124,35 +162,52 @@ export default function Dashboard({ onContact }: { onContact: (category: string 
               ) : (
                 <span className="font-semibold">{rated ? "Thanks." : "Thanks. Staff can help with this one."}</span>
               )}
-              <Button className="bg-brand text-white hover:bg-brand-dark" onClick={() => onContact(out.faq.topic, asked || out.faq.q)}>Contact staff</Button>
+              <Button variant="outline" onClick={() => { setActiveChatId(result.chat.id); go("assist") }}>
+                <Sparkles className="size-4" />Continue in Synapse Assist
+              </Button>
+              <Button
+                className="bg-brand text-white hover:bg-brand-dark"
+                onClick={() => onContact(result.reply.k === "answer" ? (sourceById(result.reply.src[0])?.topic ?? null) : null, result.q, toTranscript(result.chat.msgs))}
+              >
+                Contact staff
+              </Button>
             </div>
           </Card>
         )}
-        {out?.kind === "options" && (
-          <Card topic="Support">
-            <h2 className="mb-3 text-2xl font-bold text-navy">Did you mean one of these?</h2>
-            <ul className="mb-4 divide-y divide-line">
-              {out.items.map((x) => (
-                <li key={x.q}><button onClick={() => showFaq(x)} className="flex min-h-14 w-full items-center justify-between gap-3 text-left text-lg hover:text-brand">{x.q}<ArrowRight className="size-5" /></button></li>
-              ))}
-            </ul>
-            <Button variant="outline" onClick={() => onContact(null, asked)}>None of these, contact staff</Button>
-          </Card>
-        )}
-        {out?.kind === "escalate" && (
-          <Card topic="Support">
-            <p className="mb-1 text-sm font-bold text-muted-ink">{out.category}</p>
-            <h2 className="mb-2.5 text-2xl font-bold leading-tight text-navy">This request should be handled by a member of staff.</h2>
-            <p className="mb-4 max-w-[64ch] text-lg">{out.category === "Wellbeing" ? "You don’t have to sort this out alone. Staff will read your message and reply." : "Staff will get your request as written, so you won’t need to repeat it."}</p>
-            {out.urgent && <p className="mb-4 text-lg font-bold">In an emergency, call 999.</p>}
-            <Button className="bg-brand text-white hover:bg-brand-dark" onClick={() => onContact(out.category, asked)}>Contact staff</Button>
-          </Card>
-        )}
-        {out?.kind === "unknown" && (
+        {!busy && result?.reply.k === "escalate" && result.reply.unknown && (
           <Card topic="Support">
             <h2 className="mb-2.5 text-2xl font-bold text-navy">Not sure about that one</h2>
-            <p className="mb-4 max-w-[64ch] text-lg">I couldn’t find a good answer to that. Staff can take it from here.</p>
-            <Button className="bg-brand text-white hover:bg-brand-dark" onClick={() => onContact(null, asked)}>Contact staff</Button>
+            <p className="mb-4 max-w-[64ch] text-lg">{result.reply.text}</p>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Button variant="outline" onClick={() => { setActiveChatId(result.chat.id); go("assist") }}>
+                <Sparkles className="size-4" />Continue in Synapse Assist
+              </Button>
+              <Button className="bg-brand text-white hover:bg-brand-dark" onClick={() => onContact(null, result.q, toTranscript(result.chat.msgs))}>
+                Contact staff
+              </Button>
+            </div>
+          </Card>
+        )}
+        {!busy && result?.reply.k === "escalate" && !result.reply.unknown && (
+          <Card topic="Support">
+            <p className="mb-1 text-sm font-bold text-muted-ink">{result.reply.category}</p>
+            <h2 className="mb-2.5 flex items-center gap-2 text-2xl font-bold leading-tight text-navy">
+              <HeartHandshake aria-hidden="true" className="size-6 text-brand" />
+              This request should be handled by a member of staff.
+            </h2>
+            <p className="mb-4 max-w-[64ch] text-lg">{result.reply.text}</p>
+            {result.reply.urgent && <p className="mb-4 rounded-lg bg-[#FBEFD0] px-3 py-2 text-lg font-bold text-[#5C4300]">In an emergency, call 999.</p>}
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Button
+                className="bg-brand text-white hover:bg-brand-dark"
+                onClick={() => onContact(result.reply.k === "escalate" ? result.reply.category : null, result.q, toTranscript(result.chat.msgs))}
+              >
+                Speak to a person
+              </Button>
+              <Button variant="outline" onClick={() => { setActiveChatId(result.chat.id); go("assist") }}>
+                <Sparkles className="size-4" />Open in Synapse Assist
+              </Button>
+            </div>
           </Card>
         )}
       </div>

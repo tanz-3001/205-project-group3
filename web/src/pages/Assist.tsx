@@ -1,6 +1,7 @@
-import { FileText, HeartHandshake, History, Plus, Send, Sparkles, Trash2 } from "lucide-react"
+import { HeartHandshake, History, Plus, Send, Sparkles, Trash2 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import type { FormEvent } from "react"
+import { CitedText, SourceList } from "@/components/AssistSources"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useApp } from "@/lib/app-context"
@@ -19,19 +20,6 @@ const STARTERS = [
 type Props = { onContact: (category: string | null, q: string, transcript?: string[]) => void }
 const toTranscript = (m: Msg[]) => m.map((x) => (x.r === "u" ? "Student: " : "Assist: ") + x.t)
 
-function Cited({ text, src }: { text: string; src: string[] }) {
-  return (
-    <>
-      {text.split(/(\[[sS]\d+\])/g).map((p, i) => {
-        const m = /^\[([sS]\d+)\]$/.exec(p)
-        if (!m) return p
-        const n = src.indexOf(m[1])
-        return n < 0 ? null : <sup key={i} className="mx-0.5 rounded bg-brand-soft px-1.5 text-[0.7rem] font-bold text-brand">{n + 1}</sup>
-      })}
-    </>
-  )
-}
-
 function Bubble({ m, lastQ, all, onContact }: { m: Msg; lastQ: string; all: Msg[]; onContact: Props["onContact"] }) {
   if (m.r === "u") return <div className="max-w-[85%] self-end rounded-2xl rounded-br-sm bg-brand px-4 py-2.5 text-white">{m.t}</div>
   if (m.k === "escalate") {
@@ -48,39 +36,8 @@ function Bubble({ m, lastQ, all, onContact }: { m: Msg; lastQ: string; all: Msg[
   const cites = m.cites ?? []
   return (
     <article className="rounded-2xl border border-line bg-white p-5 animate-in fade-in slide-in-from-bottom-2">
-      <p className="mb-3 max-w-[64ch] text-[1.05rem] leading-relaxed"><Cited text={m.t} src={src} /></p>
-      {cites.length > 0 && (
-        <div className="mb-3 grid gap-1.5">
-          <span className="text-sm text-muted-ink">Sources from university documents</span>
-          {cites.map((c, i) => (
-            <details key={c.id} className="group rounded-lg border border-dashed border-[#A9BDB9] open:border-solid open:bg-page">
-              <summary className="flex min-h-10 cursor-pointer list-none flex-wrap items-center gap-2 px-3 py-1.5 text-sm text-muted-ink hover:text-brand [&::-webkit-details-marker]:hidden">
-                <sup className="rounded bg-brand-soft px-1.5 text-[0.7rem] font-bold text-brand">{i + 1}</sup><FileText aria-hidden="true" className="size-4" /><span className="font-semibold text-navy">{c.doc}</span>{c.location && <span>· {c.location}</span>}
-              </summary>
-              <div className="border-l-4 border-brand px-3 py-2 text-sm"><p className="whitespace-pre-line">{c.excerpt}</p></div>
-            </details>
-          ))}
-        </div>
-      )}
-      {cites.length === 0 && src.length > 0 && (
-        <div className="mb-3 grid gap-1.5">
-          <span className="text-sm text-muted-ink">Sources</span>
-          {src.map((id, i) => {
-            const s = sourceById(id)
-            return s ? (
-              <details key={id} className="group rounded-lg border border-dashed border-[#A9BDB9] open:border-solid open:bg-page">
-                <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 px-3 text-sm text-muted-ink hover:text-brand [&::-webkit-details-marker]:hidden">
-                  <sup className="rounded bg-brand-soft px-1.5 text-[0.7rem] font-bold text-brand">{i + 1}</sup><FileText aria-hidden="true" className="size-4" />{s.doc}
-                </summary>
-                <div className="border-l-4 border-brand px-3 py-2 text-sm">
-                  <p>{s.passage}</p>
-                  {s.link && <a href={"#" + s.link.slug} className="mt-1.5 inline-block font-semibold text-brand underline">Open {s.link.title}</a>}
-                </div>
-              </details>
-            ) : null
-          })}
-        </div>
-      )}
+      <p className="mb-3 max-w-[64ch] text-[1.05rem] leading-relaxed"><CitedText text={m.t} src={src} /></p>
+      <SourceList src={src} cites={cites} />
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="text-muted-ink">Not what you needed?</span>
         <Button variant="outline" onClick={() => onContact(null, lastQ, toTranscript(all))}>Ask staff</Button>
@@ -90,9 +47,8 @@ function Bubble({ m, lastQ, all, onContact }: { m: Msg; lastQ: string; all: Msg[
 }
 
 export default function Assist({ onContact }: Props) {
-  const { chats, saveChat, deleteChat, addEntry } = useApp()
+  const { chats, saveChat, deleteChat, addEntry, activeChatId: chatId, setActiveChatId: setChatId } = useApp()
   const { student } = useAuth()
-  const [chatId, setChatId] = useState<number | null>(null)
   const [text, setText] = useState("")
   const [busy, setBusy] = useState(false)
   const [hist, setHist] = useState(false)

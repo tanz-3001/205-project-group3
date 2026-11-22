@@ -11,6 +11,8 @@ export type Msg = { r: "u" | "a"; t: string; k?: "answer" | "escalate"; src?: st
 export type Chat = { id: number; title: string; at: number; msgs: Msg[] }
 type State = { requests: Req[]; log: Entry[]; ratings: boolean[]; chats: Chat[] }
 type Ctx = State & {
+  activeChatId: number | null
+  setActiveChatId: (id: number | null) => void
   addRequest: (q: string, tag: string, transcript?: string[]) => void
   addEntry: (e: Omit<Entry, "at">) => void
   rate: (v: boolean) => void
@@ -91,6 +93,7 @@ export function AppProvider({ children, studentId }: { children: ReactNode; stud
   const { student } = useAuth()
   const token = student?.token
   const [s, setS] = useState<State>(() => load(key))
+  const [activeChatId, setActiveChatId] = useState<number | null>(null)
   const skipNextPush = useRef(false)
   const initialPullDone = useRef(false)
 
@@ -203,20 +206,26 @@ export function AppProvider({ children, studentId }: { children: ReactNode; stud
   const value = useMemo<Ctx>(
     () => ({
       ...s,
+      activeChatId,
+      setActiveChatId,
       addRequest: (q, tag, transcript) => setS((p) => ({ ...p, requests: [...p.requests, { id: Date.now(), q, tag, at: Date.now(), status: "Waiting for staff", transcript }] })),
       addEntry: (e) => setS((p) => ({ ...p, log: [...p.log, { ...e, at: Date.now() }] })),
       rate: (v) => setS((p) => ({ ...p, ratings: [...p.ratings, v] })),
       saveChat: (c) => setS((p) => ({ ...p, chats: p.chats.some((x) => x.id === c.id) ? p.chats.map((x) => (x.id === c.id ? c : x)) : [...p.chats, c] })),
-      deleteChat: (id) => setS((p) => ({ ...p, chats: p.chats.filter((c) => c.id !== id) })),
+      deleteChat: (id) => {
+        setActiveChatId((cur) => (cur === id ? null : cur))
+        setS((p) => ({ ...p, chats: p.chats.filter((c) => c.id !== id) }))
+      },
       reset: () => {
         skipNextPush.current = true
+        setActiveChatId(null)
         setS(empty)
         if (token) {
           void knowledge.putPortalState(token, studentId, { log: [], requests: [], ratings: [], chats: [], reset: true }).catch(() => {})
         }
       },
     }),
-    [s, token, studentId],
+    [s, activeChatId, token, studentId],
   )
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>
 }
