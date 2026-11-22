@@ -83,4 +83,8 @@ def _m001_initial(db: Database, c) -> None:  # noqa: ANN001
         c.execute(text("ALTER TABLE document_chunks ADD COLUMN embedding BLOB"))
 
 
-MIGRATIONS: list[tuple[int, Callable]] = [(1, _m001_initial)]
+def _m002_portal_state(db: Database, c) -> None:  # noqa: ANN001
+    Base.metadata.create_all(c)
+
+
+MIGRATIONS: list[tuple[int, Callable]] = [(1, _m001_initial), (2, _m002_portal_state)]

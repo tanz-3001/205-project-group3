@@ -113,3 +113,15 @@ class KbSetting(Base):
 
     key: Mapped[str] = mapped_column(String(80), primary_key=True)
     value: Mapped[str] = mapped_column(Text)
+
+
+class PortalStudentState(Base):
+    """Persistent storage for a student's portal queries, staff requests, ratings and chats."""
+    __tablename__ = "portal_student_states"
+
+    student_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    log_json: Mapped[list] = mapped_column("log", JSON, default=list)
+    requests_json: Mapped[list] = mapped_column("requests", JSON, default=list)
+    ratings_json: Mapped[list] = mapped_column("ratings", JSON, default=list)
+    chats_json: Mapped[list] = mapped_column("chats", JSON, default=list)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

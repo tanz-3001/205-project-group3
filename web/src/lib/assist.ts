@@ -44,12 +44,12 @@ export const sourceById = (id: string) => SOURCES.find((s) => s.id === id)
 
 export type Reply =
   | { k: "answer"; text: string; src: string[]; cites?: Citation[] }
-  | { k: "escalate"; text: string; category: string; urgent: boolean }
+  | { k: "escalate"; text: string; category: string; urgent: boolean; /** true when no official source answered a non-sensitive question */ unknown?: boolean }
 
 /** A citation from Synapse Knowledge (an indexed university document). */
 export type Citation = { id: string; doc: string; location: string; excerpt: string; documentId: string; chunkId: string }
 
-const gap = (text: string, category = "General enquiry"): Reply => ({ k: "escalate", text, category, urgent: false })
+const gap = (text: string, category = "General"): Reply => ({ k: "escalate", text, category, urgent: false, unknown: true })
 
 /**
  * Ask Synapse Knowledge (indexed university documents). Returns null when the knowledge service

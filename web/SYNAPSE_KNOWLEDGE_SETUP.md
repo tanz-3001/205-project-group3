@@ -159,7 +159,11 @@ All endpoints are prefixed with `/api/knowledge`. Protected endpoints require an
 | `DELETE` | `/api/knowledge/documents/{id}` | `admin` | Transactionally delete document, chunks, embeddings, jobs, and stored file |
 | `POST` | `/api/knowledge/search` | `admin` | Semantic search (`{"query": "...", "top_k": 5, "document_ids": [...]}`) |
 | `POST` | `/api/knowledge/query` | `student`, `admin` | Full Guard-checked RAG pipeline (`{"question": "...", "history": [...], "top_k": 6}`) |
-| `GET` | `/api/knowledge/audit` | `admin` | Administrative audit trail (`upload`, `upload_rejected`, `reprocess`, `retry`, `delete`) |
+| `GET` | `/api/knowledge/audit` | `admin` | Administrative audit trail (`upload`, `upload_rejected`, `reprocess`, `retry`, `delete`, `request_update`) |
+| `GET` | `/api/knowledge/portal/state/{student_id}` | `student`, `admin` | Retrieve persisted student portal state (`log`, `requests`, `ratings`); redacts raw transcripts for non-admin callers |
+| `PUT` | `/api/knowledge/portal/state/{student_id}` | `student`, `admin` | Persist student queries, requests, ratings, and chats to `portal_student_states` |
+| `GET` | `/api/knowledge/portal/records` | `admin` | Retrieve all persisted student activity & escalated requests (including shared conversation transcripts) |
+| `PATCH` | `/api/knowledge/portal/requests/{student_id}/{request_id}` | `admin` | Update an escalated request's `status` (`Waiting for staff`, `In progress`, `Resolved`) and staff `reply` |
 
 ---
 

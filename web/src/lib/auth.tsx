@@ -112,11 +112,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [admin, setAdmin] = useState<Admin | null>(loadAdmin)
 
   // If a demo student signed in with a Student ID (e.g. S2041877) and has no Guard token yet,
-  // acquire a read-only student token from Guard in the background so Synapse Assist can query Synapse Knowledge.
+  // acquire a student-scoped token from Guard in the background so user.id matches student.id.
   useEffect(() => {
     if (!student || student.token) return
     let live = true
-    fetchGuardToken("student@demo.ac.ae", "Student#123").then((out) => {
+    fetchGuardToken(student.id, "Student#123").then((out) => {
       if (!live || typeof out === "string") return
       const next: Student = { ...student, token: out.token, guardRole: "student", expiresAt: tokenExpiry(out.token) }
       try {
@@ -234,7 +234,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (password.length < 6) return "Your password must be at least 6 characters."
         const sid = id.startsWith("S") ? id : "S" + id
         let token: string | undefined
-        const guardOut = await fetchGuardToken("student@demo.ac.ae", "Student#123")
+        const guardOut = await fetchGuardToken(sid, password)
         if (typeof guardOut !== "string") token = guardOut.token
         persistStudent({
           id: sid,

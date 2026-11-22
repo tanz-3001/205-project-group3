@@ -2,10 +2,16 @@ import { useMemo, useState } from "react"
 import type { ReactNode } from "react"
 import ActivityChart from "@/components/ActivityChart"
 import AdminTopBar from "@/components/AdminTopBar"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import type { Status } from "@/lib/app-context"
 import type { Admin } from "@/lib/auth"
-import { OUTCOME, ago, computeMetrics, fmtMs, fmtPct, span, stamp, useAdminData } from "@/lib/admin-data"
-import type { Query, Range } from "@/lib/admin-data"
+import { OUTCOME, ago, computeMetrics, fmtMs, fmtPct, span, stamp, updateStudentRequest, useAdminData } from "@/lib/admin-data"
+import type { AdminReq, Query, Range } from "@/lib/admin-data"
 import { TINTS } from "@/lib/data"
+
+const REQ_STATUSES: Status[] = ["Waiting for staff", "In progress", "Resolved"]
 
 const label = (t: string) => (t === "IT" ? "IT Support" : t)
 const RANGES: { id: Range; text: string }[] = [
@@ -73,9 +79,12 @@ function QueryStatus({ q }: { q: Query }) {
 }
 
 export default function AdminDashboard({ admin }: { admin: Admin }) {
-  const { records, at, changedAt } = useAdminData()
+  const { records, at, changedAt } = useAdminData(admin.token)
   const [range, setRange] = useState<Range>("7d")
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["id"]>("all")
+  const [reqFilter, setReqFilter] = useState<"open" | "all">("open")
+  const [activeReq, setActiveReq] = useState<AdminReq | null>(null)
+  const [notice, setNotice] = useState("")
   const [shown, setShown] = useState(10)
   const m = useMemo(() => computeMetrics(records, range, at), [records, range, at])
 
@@ -249,19 +258,71 @@ export default function AdminDashboard({ admin }: { admin: Admin }) {
             )}
           </Panel>
 
-          <Panel title={`Open requests${m.requests.open ? ` (${m.requests.open})` : ""}`} note="Waiting longest first">
-            {m.requests.openList.length === 0 ? (
-              <Empty>No open requests.</Empty>
+          <Panel
+            title={`Staff requests${m.requests.open ? ` (${m.requests.open} open)` : ""}`}
+            note="Manage escalated requests, read transcripts, update status and send replies"
+            aside={
+              <div role="group" aria-label="Filter requests" className="inline-flex rounded-xl border border-line bg-page p-1">
+                {([["open", `Open (${m.requests.open})`], ["all", `All (${m.requests.total})`]] as const).map(([id, txt]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={reqFilter === id}
+                    onClick={() => setReqFilter(id)}
+                    className={"min-h-9 rounded-lg px-3 text-xs font-semibold transition-colors " + (reqFilter === id ? "bg-brand text-white" : "text-muted-ink hover:text-brand")}
+                  >
+                    {txt}
+                  </button>
+                ))}
+              </div>
+            }
+          >
+            {notice && <p role="status" className="mb-3 rounded-lg bg-brand-soft px-3 py-2 text-xs font-semibold text-brand">{notice}</p>}
+            {(reqFilter === "open" ? m.requests.openList : m.requests.allList).length === 0 ? (
+              <Empty>{reqFilter === "open" ? "No open requests." : "No requests submitted yet."}</Empty>
             ) : (
               <ul className="divide-y divide-line">
-                {m.requests.openList.slice(0, 8).map((q) => (
-                  <li key={q.studentId + q.id} className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                    <div className="min-w-0">
-                      <Topic tag={q.tag} />
-                      <p className="mt-1.5 line-clamp-2 text-ink">{q.q}</p>
-                      <p className="mt-0.5 text-xs text-muted-ink">{q.studentId} · sent {stamp(q.at)}</p>
+                {(reqFilter === "open" ? m.requests.openList : m.requests.allList).slice(0, 12).map((q) => (
+                  <li key={q.studentId + q.id} className="flex flex-wrap items-start justify-between gap-3 py-3.5 first:pt-0 last:pb-0">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Topic tag={q.tag} />
+                        <span className="text-xs font-semibold text-navy">{q.studentId}</span>
+                        <span className="text-xs text-muted-ink">· #{q.id} · sent {stamp(q.at)}</span>
+                      </div>
+                      <p className="mt-1.5 text-sm font-medium text-ink">{q.q}</p>
+                      {q.reply && (
+                        <p className="mt-1 rounded-md border border-line bg-page px-2.5 py-1 text-xs text-muted-ink">
+                          <b className="text-navy">Reply:</b> {q.reply}
+                        </p>
+                      )}
+                      {q.transcript && q.transcript.length > 0 && (
+                        <details className="mt-2 rounded-lg border border-dashed border-[#A9BDB9] bg-page/60 text-xs">
+                          <summary className="cursor-pointer px-3 py-1.5 font-semibold text-brand hover:underline">
+                            Shared conversation transcript ({q.transcript.length} {q.transcript.length === 1 ? "line" : "lines"})
+                          </summary>
+                          <div className="max-h-48 overflow-y-auto border-t border-line px-3 py-2 space-y-1 text-ink">
+                            {q.transcript.map((line, idx) => (
+                              <p key={idx} className="leading-relaxed">{line}</p>
+                            ))}
+                          </div>
+                        </details>
+                      )}
                     </div>
-                    <div className="shrink-0 text-right text-xs text-muted-ink"><p className="font-semibold text-navy">{q.status}</p><p>waiting {span(at - q.at)}</p></div>
+                    <div className="flex shrink-0 flex-col items-end gap-2 text-right text-xs">
+                      <div>
+                        <p className={"font-semibold " + (q.status === "Resolved" ? "text-brand" : "text-navy")}>{q.status}</p>
+                        <p className="text-muted-ink">{q.status === "Resolved" ? "completed" : `waiting ${span(at - q.at)}`}</p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="min-h-9 px-3 text-xs font-semibold"
+                        onClick={() => setActiveReq(q)}
+                      >
+                        {q.status === "Resolved" ? "Reopen / Edit" : "Manage"}
+                      </Button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -269,8 +330,126 @@ export default function AdminDashboard({ admin }: { admin: Admin }) {
           </Panel>
         </div>
 
+        <ManageRequestDialog
+          key={activeReq ? `${activeReq.studentId}-${activeReq.id}-${activeReq.status}` : "closed"}
+          req={activeReq}
+          adminToken={admin.token}
+          onClose={() => setActiveReq(null)}
+          onSaved={(msg) => {
+            setActiveReq(null)
+            setNotice(msg)
+            window.setTimeout(() => setNotice(""), 3500)
+          }}
+        />
+
         <p className="mt-8 border-t border-line/80 pt-4 text-xs text-muted-ink">Synapse admin <span className="px-1.5 text-brand/70">/</span> Built from student activity saved by the portal. Response times are measured from the moment a question is submitted until an answer is shown.</p>
       </main>
     </div>
+  )
+}
+
+function ManageRequestDialog({
+  req,
+  adminToken,
+  onClose,
+  onSaved,
+}: {
+  req: AdminReq | null
+  adminToken?: string
+  onClose: () => void
+  onSaved: (msg: string) => void
+}) {
+  const [status, setStatus] = useState<Status>(req?.status ?? "Waiting for staff")
+  const [reply, setReply] = useState<string>(req?.reply ?? "")
+  const [saving, setSaving] = useState(false)
+
+  if (!req) return null
+
+  const save = async () => {
+    if (saving) return
+    setSaving(true)
+    await updateStudentRequest(req.studentId, req.id, { status, reply }, adminToken, req)
+    setSaving(false)
+    onSaved(`Updated request #${req.id} (${req.studentId}) to "${status}".`)
+  }
+
+  return (
+    <Dialog open={!!req} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[88dvh] overflow-y-auto sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle className="text-navy">Manage staff request</DialogTitle>
+          <DialogDescription>
+            Student <b>{req.studentId}</b> · Request #{req.id} · Sent {stamp(req.at)}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-4 text-sm">
+          <div className="rounded-xl border border-line bg-page/70 p-3.5">
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <Topic tag={req.tag} />
+              <span className="text-xs font-semibold text-muted-ink">Current: {req.status}</span>
+            </div>
+            <p className="mt-1 font-medium text-navy">{req.q}</p>
+          </div>
+
+          {req.transcript && req.transcript.length > 0 ? (
+            <details open className="rounded-xl border border-dashed border-[#A9BDB9] bg-page/60">
+              <summary className="cursor-pointer px-3.5 py-2 text-xs font-bold uppercase tracking-wide text-brand">
+                Shared student conversation transcript ({req.transcript.length} {req.transcript.length === 1 ? "message" : "messages"})
+              </summary>
+              <div className="max-h-48 space-y-1.5 overflow-y-auto border-t border-line px-3.5 py-2.5 text-xs text-ink">
+                {req.transcript.map((line, i) => (
+                  <p key={i} className="leading-relaxed">{line}</p>
+                ))}
+              </div>
+            </details>
+          ) : (
+            <p className="text-xs text-muted-ink">No conversation transcript was attached to this request.</p>
+          )}
+
+          <div>
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-ink">Request status</p>
+            <div role="group" aria-label="Request status" className="grid grid-cols-3 gap-2">
+              {REQ_STATUSES.map((st) => (
+                <button
+                  key={st}
+                  type="button"
+                  aria-pressed={status === st}
+                  onClick={() => setStatus(st)}
+                  className={
+                    "min-h-11 rounded-xl border px-3 text-xs font-bold transition " +
+                    (status === st ? "border-brand bg-brand text-white" : "border-line bg-white text-navy hover:border-brand")
+                  }
+                >
+                  {st}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-1.5">
+            <label htmlFor="staff-reply-input" className="text-xs font-bold uppercase tracking-wide text-muted-ink">
+              Staff reply (visible to student in My requests)
+            </label>
+            <Textarea
+              id="staff-reply-input"
+              value={reply}
+              onChange={(e) => setReply(e.target.value)}
+              placeholder="Write a helpful reply or next steps for the student…"
+              className="min-h-28"
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" className="min-h-11" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="button" disabled={saving} className="min-h-11 bg-brand text-white hover:bg-brand-dark" onClick={() => void save()}>
+            {saving ? "Saving…" : "Save changes"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

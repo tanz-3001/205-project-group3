@@ -25,7 +25,7 @@ from .db import Database
 from .embeddings import EmbeddingProvider, build_embedder
 from .errors import ApiError
 from .guard_client import GuardClient, GuardUnavailable
-from .models import AuditLog, Document, DocumentChunk, ProcessingJob, Status
+from .models import AuditLog, Document, DocumentChunk, PortalStudentState, ProcessingJob, Status
 from .processing import FileStorage, Processor, embedding_signature, stored_signature
 from .rag import answer_question, build_llm
 from .ratelimit import RateLimiter
@@ -96,6 +96,23 @@ class QueryBody(BaseModel):
     question: str = Field(max_length=2000)
     history: list[str] = Field(default_factory=list, max_length=20)
     top_k: int | None = Field(default=None, ge=1, le=50)
+
+
+VALID_REQ_STATUSES = ("Waiting for staff", "In progress", "Resolved")
+
+
+class PortalStateBody(BaseModel):
+    log: list[dict] = Field(default_factory=list, max_length=500)
+    requests: list[dict] = Field(default_factory=list, max_length=200)
+    ratings: list[bool] = Field(default_factory=list, max_length=500)
+    chats: list[dict] = Field(default_factory=list, max_length=100)
+    reset: bool = False
+
+
+class RequestUpdateBody(BaseModel):
+    status: str = Field(max_length=40)
+    reply: str | None = Field(default=None, max_length=2000)
+    request_snapshot: dict | None = Field(default=None)
 
 
 # ---------------------------------------------------------------- routes
@@ -296,6 +313,229 @@ def audit_log(limit: int = Query(default=100, ge=1, le=500), user: User = Depend
                              "timestamp": iso(r.timestamp), "metadata": r.metadata_json} for r in rows]}
 
 
+# ------------------------------------------- portal persistence & request management
+def _clean_sid(student_id: str) -> str:
+    sid = student_id.strip()[:80]
+    if not sid or not all(c.isalnum() or c in "_-." for c in sid):
+        raise ApiError(422, "invalid_student_id", "Invalid student ID.")
+    return sid
+
+
+def _check_student_access(ctx: AppContext, user: User, sid: str) -> bool:
+    is_admin = user.role in ctx.settings.admin_roles
+    if not is_admin and user.id != sid:
+        raise ApiError(403, "forbidden", "Students can only access their own portal state.")
+    return is_admin
+
+
+def _redact_reqs_for_student(reqs: list[dict]) -> list[dict]:
+    out = []
+    for r in reqs:
+        rc = dict(r)
+        if rc.get("transcript"):
+            rc["transcript"] = ["[shared with staff]"]
+        else:
+            rc.pop("transcript", None)
+        out.append(rc)
+    return out
+
+
+def _other_student_request_ids(s, sid: str) -> set[int]:  # noqa: ANN001
+    others = s.scalars(select(PortalStudentState).where(PortalStudentState.student_id != sid)).all()
+    ids: set[int] = set()
+    for row in others:
+        for r in (row.requests_json or []):
+            if isinstance(r, dict) and isinstance(r.get("id"), int):
+                ids.add(r["id"])
+    return ids
+
+
+@router.get("/portal/state/{student_id}")
+def get_portal_state(student_id: str, user: User = Depends(require_chat), ctx: AppContext = Depends(get_ctx)) -> dict:
+    sid = _clean_sid(student_id)
+    is_admin = _check_student_access(ctx, user, sid)
+    with ctx.db.session() as s:
+        row = s.get(PortalStudentState, sid)
+        if row is None:
+            return {"student_id": sid, "exists": False, "log": [], "requests": [], "ratings": [], "chats": []}
+        reqs = list(row.requests_json or [])
+        return {
+            "student_id": sid,
+            "exists": True,
+            "log": list(row.log_json or []),
+            "requests": reqs if is_admin else _redact_reqs_for_student(reqs),
+            "ratings": list(row.ratings_json or []),
+            "chats": list(row.chats_json or []),
+            "updated_at": iso(row.updated_at),
+        }
+
+
+@router.put("/portal/state/{student_id}")
+def put_portal_state(student_id: str, body: PortalStateBody, user: User = Depends(require_chat), ctx: AppContext = Depends(get_ctx)) -> dict:
+    sid = _clean_sid(student_id)
+    is_admin = _check_student_access(ctx, user, sid)
+    with ctx.db.session() as s:
+        row = s.get(PortalStudentState, sid)
+        if body.reset:
+            if row is not None:
+                row.log_json = []
+                row.requests_json = []
+                row.ratings_json = []
+                row.chats_json = []
+                s.flush()
+            return {"student_id": sid, "log": [], "requests": [], "ratings": [], "chats": [], "updated_at": iso(row.updated_at if row else None)}
+
+        foreign_ids = _other_student_request_ids(s, sid)
+        existing_reqs = {r.get("id"): r for r in (row.requests_json if row else []) if isinstance(r, dict) and "id" in r}
+        merged_reqs = []
+        for r in body.requests:
+            if not isinstance(r, dict) or not isinstance(r.get("id"), int):
+                continue
+            if r["id"] in foreign_ids:
+                raise ApiError(403, "forbidden", "Request belongs to another student.")
+            prev = existing_reqs.get(r["id"])
+            rc = dict(r)
+            if rc.get("share_transcript") is False or not rc.get("transcript"):
+                rc.pop("transcript", None)
+            rc.pop("share_transcript", None)
+            if prev:
+                # Preserve the original transcript if the client only had the redacted placeholder
+                if prev.get("transcript") and rc.get("transcript") == ["[shared with staff]"]:
+                    rc["transcript"] = prev["transcript"]
+                # Students cannot modify status, staff reply, or staff_updated_at on an existing request
+                if not is_admin or (prev.get("staff_updated_at") or 0) >= (rc.get("staff_updated_at") or 0):
+                    rc["status"] = prev.get("status", "Waiting for staff")
+                    if "reply" in prev:
+                        rc["reply"] = prev["reply"]
+                    else:
+                        rc.pop("reply", None)
+                    if "staff_updated_at" in prev:
+                        rc["staff_updated_at"] = prev["staff_updated_at"]
+                    else:
+                        rc.pop("staff_updated_at", None)
+            elif not is_admin:
+                rc["status"] = "Waiting for staff"
+                rc.pop("reply", None)
+                rc.pop("staff_updated_at", None)
+            merged_reqs.append(rc)
+
+        incoming_ids = {r.get("id") for r in merged_reqs}
+        for rid, prev in existing_reqs.items():
+            if rid not in incoming_ids:
+                merged_reqs.append(prev)
+        merged_reqs.sort(key=lambda x: x.get("at", 0))
+
+        # Additive merge of query log entries by (at, q) so existing localStorage and server history both survive
+        log_by_key: dict[tuple, dict] = {}
+        for entry in list(row.log_json if row else []) + list(body.log):
+            if isinstance(entry, dict) and "q" in entry and "at" in entry:
+                log_by_key[(entry["at"], entry["q"])] = entry
+        merged_log = sorted(log_by_key.values(), key=lambda x: x.get("at", 0))
+
+        # Additive merge of conversations by chat id (keep version with more messages)
+        chats_by_id: dict[int, dict] = {}
+        for chat in list(row.chats_json if row else []) + list(body.chats):
+            if isinstance(chat, dict) and isinstance(chat.get("id"), int):
+                prev_c = chats_by_id.get(chat["id"])
+                if not prev_c or len(chat.get("msgs") or []) >= len(prev_c.get("msgs") or []):
+                    chats_by_id[chat["id"]] = chat
+        merged_chats = sorted(chats_by_id.values(), key=lambda x: x.get("at", 0))
+
+        existing_ratings = list(row.ratings_json if row else [])
+        merged_ratings = list(body.ratings) if len(body.ratings) >= len(existing_ratings) else existing_ratings
+
+        if row is None:
+            row = PortalStudentState(
+                student_id=sid,
+                log_json=merged_log,
+                requests_json=merged_reqs,
+                ratings_json=merged_ratings,
+                chats_json=merged_chats,
+            )
+            s.add(row)
+        else:
+            row.log_json = merged_log
+            row.requests_json = merged_reqs
+            row.ratings_json = merged_ratings
+            row.chats_json = merged_chats
+        s.flush()
+        return {
+            "student_id": sid,
+            "log": merged_log,
+            "requests": merged_reqs if is_admin else _redact_reqs_for_student(merged_reqs),
+            "ratings": merged_ratings,
+            "chats": merged_chats,
+            "updated_at": iso(row.updated_at),
+        }
+
+
+@router.get("/portal/records")
+def list_portal_records(user: User = Depends(require_admin), ctx: AppContext = Depends(get_ctx)) -> dict:
+    """Admin-only: returns all persisted student activity & escalated requests (including transcripts)."""
+    with ctx.db.session() as s:
+        rows = s.scalars(select(PortalStudentState).order_by(PortalStudentState.updated_at.desc())).all()
+        return {
+            "records": [
+                {
+                    "studentId": r.student_id,
+                    "log": list(r.log_json or []),
+                    "requests": list(r.requests_json or []),
+                    "ratings": list(r.ratings_json or []),
+                }
+                for r in rows
+            ]
+        }
+
+
+@router.patch("/portal/requests/{student_id}/{request_id}")
+def update_portal_request(
+    student_id: str,
+    request_id: int,
+    body: RequestUpdateBody,
+    user: User = Depends(require_admin),
+    ctx: AppContext = Depends(get_ctx),
+) -> dict:
+    """Admin-only: update an escalated request's status ('Waiting for staff', 'In progress', 'Resolved') and staff reply."""
+    sid = _clean_sid(student_id)
+    if body.status not in VALID_REQ_STATUSES:
+        raise ApiError(422, "invalid_status", "Status must be 'Waiting for staff', 'In progress' or 'Resolved'.")
+    reply_clean = body.reply.strip() if isinstance(body.reply, str) else None
+    from .models import utcnow
+
+    with ctx.db.session() as s:
+        if request_id in _other_student_request_ids(s, sid):
+            raise ApiError(403, "forbidden", "This request belongs to another student.")
+        if body.request_snapshot and isinstance(body.request_snapshot, dict):
+            snap_sid = body.request_snapshot.get("studentId")
+            if snap_sid and snap_sid != sid:
+                raise ApiError(403, "forbidden", "Request snapshot student ID does not match.")
+
+        row = s.get(PortalStudentState, sid)
+        if row is None:
+            row = PortalStudentState(student_id=sid, log_json=[], requests_json=[], ratings_json=[], chats_json=[])
+            s.add(row)
+            s.flush()
+        reqs = [dict(r) for r in (row.requests_json or []) if isinstance(r, dict)]
+        target = next((r for r in reqs if r.get("id") == request_id), None)
+        if target is None:
+            if body.request_snapshot and isinstance(body.request_snapshot, dict):
+                target = {k: v for k, v in body.request_snapshot.items() if k != "studentId"}
+                target["id"] = request_id
+                reqs.append(target)
+            else:
+                raise ApiError(404, "not_found", "Request not found.")
+        target["status"] = body.status
+        if reply_clean:
+            target["reply"] = reply_clean
+        elif body.reply == "":
+            target.pop("reply", None)
+        target["staff_updated_at"] = int(utcnow().timestamp() * 1000)
+        row.requests_json = reqs
+        audit(s, user, "request_update", None, student_id=sid, request_id=request_id, status=body.status, has_reply=bool(reply_clean))
+        s.flush()
+        return {"student_id": sid, "request": target}
+
+
 def _auto_seed_sample_docs(ctx: AppContext) -> None:
     """On Vercel cold start with an empty SQLite DB, seed the bundled sample university documents."""
     from .config import BASE_DIR
@@ -357,7 +597,7 @@ def create_app(settings: Settings | None = None, *, embedder: EmbeddingProvider 
     app = FastAPI(title="Synapse Knowledge", version="1.0.0", docs_url="/api/knowledge/docs", openapi_url="/api/knowledge/openapi.json")
     app.state.ctx = ctx
     if settings.cors_origins:
-        app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_methods=["GET", "POST", "DELETE"], allow_headers=["Authorization", "Content-Type"])
+        app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"], allow_headers=["Authorization", "Content-Type"])
 
     _seeded = False
 

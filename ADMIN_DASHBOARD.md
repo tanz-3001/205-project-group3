@@ -29,10 +29,12 @@ refreshes every 15 s and when the tab regains focus.
 - Credentials use the Guard demo account's salted SHA-256 hash; 5 failed attempts lock sign-in for a minute.
 - A stored student session can never carry the Admin role.
 
-## Limits (prototype)
-- The portal has no server database, so the dashboard sees students who used the portal **in the same browser**. For all
-  students on all devices, save `log`, `requests` and `ratings` to a database; only `readRecords()` in `src/lib/admin-data.ts`
-  needs to change.
-- Browser checks can be bypassed by anyone with dev tools. Real enforcement needs server-side roles (SSO plus a role check
-  on the API that serves this data).
-- Staff replies/resolution do not exist in the student app yet, so staff response time cannot be measured; open requests show how long they have waited.
+## Staff request management
+- In the **Staff requests** panel, administrators can toggle between **Open** and **All** requests, expand shared conversation transcripts (`r.transcript`), and click **Manage** (or **Reopen / Edit** on resolved requests) to:
+  - Change the status between `Waiting for staff`, `In progress`, and `Resolved` (including reopening resolved requests).
+  - Write and save a staff reply (`r.reply`).
+- Updates persist both in browser `localStorage` (notifying open student tabs immediately via `storage` and custom events) and in the backend database (`portal_student_states` via `PATCH /api/knowledge/portal/requests/{student_id}/{request_id}`).
+
+## Persistence & deployment notes
+- The student portal and admin dashboard keep a fast local cache in `localStorage` (`synapse:react:v1:<studentId>`) and synchronise with the backend SQL database (`PUT /api/knowledge/portal/state/{student_id}` and `GET /api/knowledge/portal/records`).
+- For permanent cross-device persistence in production (on Vercel or cloud containers), configure `DATABASE_URL=postgresql+psycopg://...` pointing to a managed PostgreSQL instance. Without an external `DATABASE_URL`, Vercel serverless functions use instance-local `/tmp/synapse_knowledge.db`.

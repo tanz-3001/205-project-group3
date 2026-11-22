@@ -356,3 +356,202 @@ def test_embedding_model_change_requires_reindex(make_client):
     c2 = make_client(embedder=OtherModel())
     assert c2.get(f"{KB}/health").json()["embedding"]["index_compatible"] is False
     assert c2.post(f"{KB}/search", json={"query": "password"}, headers=auth("admin")).json()["error"]["code"] == "index_incompatible"
+
+
+class TestPortalPersistenceAndRequests:
+    def test_student_can_only_access_own_portal_state(self, client):
+        sid_a = "S2041877"
+        sid_b = "S9999999"
+        tok_a = auth("student", sub=sid_a)
+        tok_b = auth("student", sub=sid_b)
+
+        # Student A can write and read own state
+        assert client.put(f"{KB}/portal/state/{sid_a}", json={"log": [], "requests": [], "ratings": []}, headers=tok_a).status_code == 200
+        assert client.get(f"{KB}/portal/state/{sid_a}", headers=tok_a).status_code == 200
+
+        # Student B cannot read or overwrite Student A's state
+        assert client.get(f"{KB}/portal/state/{sid_a}", headers=tok_b).status_code == 403
+        assert client.put(f"{KB}/portal/state/{sid_a}", json={"log": [], "requests": [], "ratings": []}, headers=tok_b).status_code == 403
+
+    def test_request_updates_cannot_modify_other_students_request(self, client):
+        sid_a = "S2041877"
+        sid_b = "S9999999"
+        tok_a = auth("student", sub=sid_a)
+        tok_b = auth("student", sub=sid_b)
+        ad = auth("admin", sub="u_2")
+
+        req_a = {"id": 5001, "q": "Grade appeal request", "tag": "Academic appeals", "at": 1700000000000, "status": "Waiting for staff"}
+        assert client.put(f"{KB}/portal/state/{sid_a}", json={"requests": [req_a]}, headers=tok_a).status_code == 200
+
+        # Student A cannot forge status or staff reply on their own request
+        forged = {**req_a, "status": "Resolved", "reply": "Approved by myself", "staff_updated_at": 9999999999999}
+        r_forge = client.put(f"{KB}/portal/state/{sid_a}", json={"requests": [forged]}, headers=tok_a).json()
+        assert r_forge["requests"][0]["status"] == "Waiting for staff"
+        assert "reply" not in r_forge["requests"][0]
+
+        # Student B cannot claim or modify Student A's request ID 5001
+        assert client.put(f"{KB}/portal/state/{sid_b}", json={"requests": [req_a]}, headers=tok_b).status_code == 403
+
+        # Admin PATCH on Student B's path with Student A's request ID 5001 is rejected
+        assert client.patch(f"{KB}/portal/requests/{sid_b}/5001", json={"status": "Resolved", "reply": "wrong student"}, headers=ad).status_code == 403
+        assert client.patch(
+            f"{KB}/portal/requests/{sid_b}/5002",
+            json={"status": "In progress", "reply": "mismatch", "request_snapshot": {**req_a, "id": 5002, "studentId": sid_a}},
+            headers=ad,
+        ).status_code == 403
+
+    def test_student_sync_and_admin_request_management_and_transcript_privacy(self, client):
+        sid = "S2041877"
+        st = auth("student", sub=sid)
+        ad = auth("admin", sub="u_2")
+        req_shared = {
+            "id": 1001,
+            "q": "I want to appeal my final grade - need guidance",
+            "tag": "Academic appeals",
+            "at": 1700000000000,
+            "status": "Waiting for staff",
+            "transcript": ["Student: I want to appeal my final grade", "Assist: A member of staff needs to look at this."],
+        }
+        req_unshared = {
+            "id": 1002,
+            "q": "Private financial question",
+            "tag": "Financial help",
+            "at": 1700000000500,
+            "status": "Waiting for staff",
+            "transcript": ["Student: Private chat"],
+            "share_transcript": False,
+        }
+        log_item = {"q": "What is the campus swimming pool schedule?", "tag": "General", "type": "unknown", "at": 1700000001000, "ms": 42, "via": "assist"}
+
+        # 1. Student syncs portal state
+        r = client.put(f"{KB}/portal/state/{sid}", json={"log": [log_item], "requests": [req_shared, req_unshared], "ratings": [True]}, headers=st)
+        assert r.status_code == 200
+
+        # 2. Student and unauthenticated callers cannot access admin portal records or patch request status
+        assert client.get(f"{KB}/portal/records").status_code == 401
+        assert client.patch(f"{KB}/portal/requests/{sid}/1001", json={"status": "Resolved"}).status_code == 401
+        assert client.get(f"{KB}/portal/records", headers=st).status_code == 403
+        assert client.patch(f"{KB}/portal/requests/{sid}/1001", json={"status": "Resolved", "reply": "hacked"}, headers=st).status_code == 403
+
+        # 3. Student state endpoint redacts raw transcript lines for shared transcripts and drops unshared transcripts
+        st_view = client.get(f"{KB}/portal/state/{sid}", headers=st).json()
+        assert st_view["exists"] is True
+        by_id = {x["id"]: x for x in st_view["requests"]}
+        assert by_id[1001]["transcript"] == ["[shared with staff]"]
+        assert "transcript" not in by_id[1002]
+
+        # 4. Admin sees full raw conversation transcript ONLY when sharing was permitted
+        rec_res = client.get(f"{KB}/portal/records", headers=ad).json()
+        s_rec = next(x for x in rec_res["records"] if x["studentId"] == sid)
+        admin_by_id = {x["id"]: x for x in s_rec["requests"]}
+        assert admin_by_id[1001]["transcript"] == req_shared["transcript"]
+        assert "transcript" not in admin_by_id[1002]
+        assert s_rec["log"][0]["type"] == "unknown"
+
+        # 5. Admin updates request status to "In progress" and saves a staff reply
+        up1 = client.patch(
+            f"{KB}/portal/requests/{sid}/1001",
+            json={"status": "In progress", "reply": "We have assigned an academic advisor to review your appeal."},
+            headers=ad,
+        )
+        assert up1.status_code == 200
+        assert up1.json()["request"]["status"] == "In progress"
+        assert up1.json()["request"]["reply"] == "We have assigned an academic advisor to review your appeal."
+
+        # 6. Concurrent/stale student push does NOT overwrite admin's newer status/reply or wipe existing logs/chats
+        stale_req = {**req_shared, "status": "Waiting for staff", "transcript": ["[shared with staff]"]}
+        new_log = {"q": "How do I reset my password?", "tag": "IT", "type": "answered", "at": 1700000002000, "ms": 15, "via": "ask"}
+        chat_v1 = {"id": 9001, "title": "Password help", "at": 1700000002000, "msgs": [{"r": "u", "t": "Hi"}, {"r": "a", "t": "Hello"}]}
+        client.put(
+            f"{KB}/portal/state/{sid}",
+            json={"log": [new_log], "requests": [stale_req], "ratings": [True, False], "chats": [chat_v1]},
+            headers=st,
+        )
+        st_after = client.get(f"{KB}/portal/state/{sid}", headers=st).json()
+        req_1001 = next(x for x in st_after["requests"] if x["id"] == 1001)
+        assert req_1001["status"] == "In progress"
+        assert req_1001["reply"] == "We have assigned an academic advisor to review your appeal."
+        assert len(st_after["log"]) == 2  # both old and new log entries preserved
+        assert len(st_after["requests"]) == 2  # both 1001 and 1002 preserved
+        assert st_after["ratings"] == [True, False]
+        assert len(st_after["chats"]) == 1 and len(st_after["chats"][0]["msgs"]) == 2
+
+        # 7. Admin resolves and then reopens the request; audit log records the actions
+        assert client.patch(f"{KB}/portal/requests/{sid}/1001", json={"status": "Resolved", "reply": "Appeal processed."}, headers=ad).status_code == 200
+        reopen = client.patch(f"{KB}/portal/requests/{sid}/1001", json={"status": "In progress", "reply": "Reopened for follow-up."}, headers=ad)
+        assert reopen.status_code == 200 and reopen.json()["request"]["status"] == "In progress"
+        audit_entries = client.get(f"{KB}/audit", headers=ad).json()["entries"]
+        assert any(e["action"] == "request_update" for e in audit_entries)
+
+    def test_data_survives_app_and_database_restart(self, settings, guard):
+        from app.main import create_app
+        from fastapi.testclient import TestClient
+
+        sid = "S2041877"
+        st = auth("student", sub=sid)
+        ad = auth("admin", sub="u_2")
+
+        app1 = create_app(settings, embedder=BagOfWordsTestEmbedder(), llm=None, guard=guard, sync_processing=True)
+        c1 = TestClient(app1)
+        upload(c1, "IT_Help_Desk_FAQ.txt", sample("IT_Help_Desk_FAQ.txt"), "text/plain")
+        c1.put(
+            f"{KB}/portal/state/{sid}",
+            json={
+                "log": [{"q": "Wi-Fi", "tag": "IT", "type": "answered", "at": 1700000000000}],
+                "requests": [{"id": 777, "q": "Need help", "tag": "IT", "at": 1700000000000, "status": "Waiting for staff"}],
+                "ratings": [True],
+                "chats": [{"id": 1, "title": "Wi-Fi", "at": 1700000000000, "msgs": [{"r": "u", "t": "Wi-Fi?"}]}],
+            },
+            headers=st,
+        )
+        c1.patch(f"{KB}/portal/requests/{sid}/777", json={"status": "Resolved", "reply": "Fixed Wi-Fi."}, headers=ad)
+        app1.state.ctx.db.engine.dispose()
+
+        # Create a brand new app & Database engine against the same persistent database URL
+        app2 = create_app(settings, embedder=BagOfWordsTestEmbedder(), llm=None, guard=guard, sync_processing=True)
+        c2 = TestClient(app2)
+        docs = c2.get(f"{KB}/documents", headers=ad).json()["documents"]
+        assert len(docs) == 1 and docs[0]["processing_status"] == "indexed"
+        state = c2.get(f"{KB}/portal/state/{sid}", headers=st).json()
+        assert state["exists"] is True
+        assert state["requests"][0]["status"] == "Resolved" and state["requests"][0]["reply"] == "Fixed Wi-Fi."
+        assert len(state["chats"]) == 1 and state["log"][0]["q"] == "Wi-Fi"
+
+    def test_postgresql_migrations_and_vercel_database_url_config(self, monkeypatch, tmp_path):
+        from app.config import Settings, load_settings
+        from app.db import MIGRATIONS
+
+        # 1. Verify PostgreSQL migration DDL statements
+        executed_sql: list[str] = []
+
+        class DummyConn:
+            def execute(self, stmt, params=None):
+                executed_sql.append(str(stmt))
+
+        class DummyPGDB:
+            settings = Settings(database_url="postgresql+psycopg://u:p@localhost:5432/synapse", embedding_dimensions=768)
+
+        # Verify pgvector extension, vector(768) column, and HNSW index are issued for PostgreSQL
+        from unittest.mock import patch
+        from app.models import Base
+
+        with patch.object(Base.metadata, "create_all") as mock_create_all:
+            for _, fn in MIGRATIONS:
+                fn(DummyPGDB(), DummyConn())
+            assert mock_create_all.call_count == 2
+        assert any("CREATE EXTENSION IF NOT EXISTS vector" in s for s in executed_sql)
+        assert any("ADD COLUMN IF NOT EXISTS embedding vector(768)" in s for s in executed_sql)
+        assert any("USING hnsw (embedding vector_cosine_ops)" in s for s in executed_sql)
+        assert "portal_student_states" in Base.metadata.tables
+
+        # 2. Verify Vercel environment configuration honors external DATABASE_URL when set
+        monkeypatch.setenv("VERCEL", "1")
+        monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://prod:secret@db.example.com:5432/synapse")
+        s_pg = load_settings()
+        assert s_pg.is_postgres is True
+        assert s_pg.database_url == "postgresql+psycopg://prod:secret@db.example.com:5432/synapse"
+
+        # 3. Verify Vercel fallback when no external DATABASE_URL is configured
+        monkeypatch.delenv("DATABASE_URL", raising=False)
+        s_tmp = load_settings()
+        assert s_tmp.database_url == "sqlite:////tmp/synapse_knowledge.db"

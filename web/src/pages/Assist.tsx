@@ -113,7 +113,13 @@ export default function Assist({ onContact }: Props) {
     const ms = Math.round(performance.now() - t0)
     const m: Msg = out.k === "answer" ? { r: "a", k: "answer", t: out.text, src: out.src, ...(out.cites ? { cites: out.cites } : {}) } : { r: "a", k: "escalate", t: out.text, category: out.category, urgent: out.urgent }
     saveChat({ ...withQ, msgs: [...withQ.msgs, m] })
-    addEntry({ q, tag: out.k === "answer" ? (out.cites ? "Knowledge base" : (sourceById(out.src[0])?.topic ?? "General")) : out.category, type: out.k === "answer" ? "answered" : "escalated", ms, via: "assist" })
+    addEntry({
+      q,
+      tag: out.k === "answer" ? (out.cites ? "Knowledge base" : (sourceById(out.src[0])?.topic ?? "General")) : out.category,
+      type: out.k === "answer" ? "answered" : out.unknown ? "unknown" : "escalated",
+      ms,
+      via: "assist",
+    })
     setBusy(false)
   }
   const submit = (e: FormEvent) => {

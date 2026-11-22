@@ -104,6 +104,14 @@ export const knowledge = {
   reprocess: (t: string, id: string) => call<{ document: KDocument }>(t, `/documents/${encodeURIComponent(id)}/reprocess`, { method: "POST" }),
   search: (t: string, query: string, top_k = 6) => call<SearchResult>(t, "/search", { method: "POST", body: JSON.stringify({ query, top_k }) }),
   query: (t: string, question: string, history: string[] = []) => call<QueryResult>(t, "/query", { method: "POST", body: JSON.stringify({ question, history }) }, 45000),
+  getPortalState: (t: string, studentId: string) =>
+    call<{ student_id: string; exists: boolean; log: unknown[]; requests: unknown[]; ratings: boolean[]; chats: unknown[] }>(t, `/portal/state/${encodeURIComponent(studentId)}`),
+  putPortalState: (t: string, studentId: string, body: { log: unknown[]; requests: unknown[]; ratings: boolean[]; chats?: unknown[]; reset?: boolean }) =>
+    call<{ student_id: string; log: unknown[]; requests: unknown[]; ratings: boolean[]; chats: unknown[] }>(t, `/portal/state/${encodeURIComponent(studentId)}`, { method: "PUT", body: JSON.stringify(body) }),
+  listPortalRecords: (t: string) =>
+    call<{ records: { studentId: string; log: unknown[]; requests: unknown[]; ratings: boolean[] }[] }>(t, "/portal/records"),
+  updatePortalRequest: (t: string, studentId: string, requestId: number, body: { status: string; reply: string | null; request_snapshot?: unknown }) =>
+    call<{ student_id: string; request: unknown }>(t, `/portal/requests/${encodeURIComponent(studentId)}/${requestId}`, { method: "PATCH", body: JSON.stringify(body) }),
 }
 
 /** Upload one file with real byte-level progress (XMLHttpRequest exposes upload progress; fetch does not). */
