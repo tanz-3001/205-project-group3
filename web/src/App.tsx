@@ -13,6 +13,7 @@ import AdminLogin from "@/pages/AdminLogin"
 import Assist from "@/pages/Assist"
 import Dashboard from "@/pages/Dashboard"
 import Knowledge from "@/pages/Knowledge"
+import Landing from "@/pages/Landing"
 import Login from "@/pages/Login"
 import Requests from "@/pages/Requests"
 import TopicPage from "@/pages/TopicPage"
@@ -95,7 +96,9 @@ function Gate() {
       <AdminLogin />
     )
   }
-  if (!student) return <Login />
+  if (!student) {
+    return route === "login" ? <Login /> : <Landing />
+  }
   return (
     <AppProvider key={student.id} studentId={student.id}>
       <Shell />

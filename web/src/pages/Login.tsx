@@ -19,15 +19,24 @@ export default function Login() {
     const msg = await signIn(id, pw)
     setBusy(false)
     setErr(msg ?? "")
+    if (!msg) window.location.hash = "#ask"
+  }
+  const fillDemo = (demoId: string, demoPw: string) => {
+    setId(demoId)
+    setPw(demoPw)
+    setErr("")
   }
   return (
     <div className="app-canvas grid min-h-screen place-items-center bg-page px-4 py-10 text-ink">
       <div className="flex w-full max-w-[560px] flex-col items-center gap-6">
         <h1 className="text-center text-4xl font-bold tracking-tight text-navy sm:text-5xl">Welcome to Synapse</h1>
         <form onSubmit={submit} noValidate className="grid w-full gap-4 rounded-2xl border border-line border-t-[5px] border-t-brand bg-white p-7 shadow-[0_18px_55px_-30px_rgba(10,35,40,0.35)] sm:px-10 sm:py-9">
-          <div className="flex items-center gap-3 font-extrabold text-navy">
-            <span className="grid size-10 place-items-center rounded-[14px] bg-[#1e615e] text-white"><Sparkles aria-hidden="true" className="size-[18px]" /></span>
-            Synapse Assist
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 font-extrabold text-navy">
+              <span className="grid size-10 place-items-center rounded-[14px] bg-[#1e615e] text-white"><Sparkles aria-hidden="true" className="size-[18px]" /></span>
+              Synapse Assist
+            </div>
+            <a href="#" className="text-xs font-semibold text-brand hover:underline">← Back to overview</a>
           </div>
           <div>
             <h2 className="text-2xl font-bold text-navy">Sign in</h2>
@@ -41,8 +50,13 @@ export default function Login() {
           </label>
           <p id="login-err" role="alert" className="min-h-5 text-sm font-semibold text-[#B4281B]">{err}</p>
           <Button type="submit" disabled={busy} className="min-h-12 bg-brand text-base text-white hover:bg-brand-dark">{busy ? "Signing in…" : "Sign in"}</Button>
-          <p className="text-sm text-muted-ink">Forgot your password? Contact the IT Help Desk. <b>Demo:</b> any ID like S2041877 and a password of 6+ characters, or a Synapse Guard demo account (student@demo.ac.ae / Student#123, admin@demo.ac.ae / Admin#123).</p>
-          <p className="text-sm text-muted-ink">Administrator? <a href="#admin" className="font-semibold text-brand underline">Admin sign-in</a></p>
+          <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3 text-xs">
+            <span className="font-semibold text-muted-ink">Quick fill demo:</span>
+            <button type="button" onClick={() => fillDemo("S2041877", "Student#123")} className="rounded-lg border border-line bg-page px-2.5 py-1.5 font-semibold text-navy hover:border-brand hover:bg-brand-soft">Student (Layla A.)</button>
+            <button type="button" onClick={() => fillDemo("student@demo.ac.ae", "Student#123")} className="rounded-lg border border-line bg-page px-2.5 py-1.5 font-semibold text-navy hover:border-brand hover:bg-brand-soft">Guard Student</button>
+            <button type="button" onClick={() => fillDemo("admin@demo.ac.ae", "Admin#123")} className="rounded-lg border border-line bg-page px-2.5 py-1.5 font-semibold text-navy hover:border-brand hover:bg-brand-soft">Admin (Full Access)</button>
+          </div>
+          <p className="text-sm text-muted-ink">Forgot your password? Contact the IT Help Desk. Administrator? <a href="#admin" className="font-semibold text-brand underline">Admin sign-in</a></p>
         </form>
       </div>
     </div>

@@ -253,7 +253,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           /* ignore */
         }
         setStudent(null)
-        window.location.hash = "#ask"
+        window.location.hash = ""
       },
     }
   }, [student, admin])

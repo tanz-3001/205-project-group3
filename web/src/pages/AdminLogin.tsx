@@ -39,7 +39,7 @@ export default function AdminLogin() {
           </label>
           <p id="admin-login-err" role="alert" className="min-h-5 text-sm font-semibold text-[#B4281B]">{err}</p>
           <Button type="submit" disabled={busy} className="min-h-12 bg-brand text-base text-white hover:bg-brand-dark">{busy ? "Signing in…" : "Sign in"}</Button>
-          <p className="text-sm text-muted-ink"><b>Demo:</b> admin@demo.ac.ae with Admin#123 (the Synapse Guard demo admin). <a href="#ask" className="font-semibold text-brand underline">Back to the student portal</a></p>
+          <p className="text-sm text-muted-ink"><b>Demo:</b> admin@demo.ac.ae with Admin#123 (the Synapse Guard demo admin). <a href="#" className="font-semibold text-brand underline">← Back to overview</a></p>
         </form>
       </div>
     </div>
