@@ -1,0 +1,25 @@
+# IT Help Desk FAQ
+
+SAMPLE DOCUMENT - fictional content for the Synapse prototype. Not real university policy.
+
+## Resetting your password
+
+Select Forgot password on the portal sign-in page and enter your university email address. A reset link is sent to your registered recovery email and expires after 30 minutes. New passwords must be at least 12 characters and include a number and a symbol.
+
+If your account is locked after 5 failed sign-in attempts, wait 15 minutes and try again, or contact the IT Help Desk to unlock it.
+
+## Connecting to campus Wi-Fi
+
+Connect to the network named SynapseDemo-Secure and sign in with your university username and password. Guests should use SynapseDemo-Guest, which requires a daily access code from the library desk. Each student may register up to 4 devices.
+
+## Multi-factor authentication
+
+Multi-factor authentication (MFA) is required for the student portal and university email. Set it up in the Security section of your account using an authenticator app. If you change phones, ask the IT Help Desk to reset your MFA after verifying your identity in person.
+
+## Software for students
+
+Students can install the office suite on up to 5 personal devices at no cost while enrolled. Specialist software for engineering and design courses is available in the computer labs and through the virtual desktop service.
+
+## Contacting the IT Help Desk
+
+The IT Help Desk is in the Library, Level 1, and is open Sunday to Thursday from 8:00 to 18:00. Requests can also be raised through Synapse at any time.

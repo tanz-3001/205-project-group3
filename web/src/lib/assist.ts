@@ -1,6 +1,7 @@
 import { FAQS, TOPIC_PAGES } from "./data"
 import type { FAQ } from "./data"
 import type { Msg } from "./app-context"
+import { knowledge } from "./knowledge"
 
 const STOP = new Set("the a an i my me to do how what where when is are can of for and in on it get find need want have does there this that with about please you your our us we".split(" "))
 const stem = (w: string) => (w.length > 4 ? w.replace(/(ing|ed|es|s)$/, "") : w)
@@ -42,16 +43,45 @@ export const SOURCES: Source[] = FAQS.map((f, i) => {
 export const sourceById = (id: string) => SOURCES.find((s) => s.id === id)
 
 export type Reply =
-  | { k: "answer"; text: string; src: string[] }
+  | { k: "answer"; text: string; src: string[]; cites?: Citation[] }
   | { k: "escalate"; text: string; category: string; urgent: boolean }
+
+/** A citation from Synapse Knowledge (an indexed university document). */
+export type Citation = { id: string; doc: string; location: string; excerpt: string; documentId: string; chunkId: string }
 
 const gap = (text: string, category = "General enquiry"): Reply => ({ k: "escalate", text, category, urgent: false })
 
 /**
- * Safety order matters: sensitive topics and weak matches never reach the AI.
- * Only questions with a clear official source are sent to /api/assist, and the AI may only use those sources.
+ * Ask Synapse Knowledge (indexed university documents). Returns null when the knowledge service
+ * is unavailable or has no sufficient evidence, so the caller falls back to the existing FAQ flow.
  */
-export async function answerChat(q: string, earlier: Msg[]): Promise<Reply> {
+async function askKnowledge(q: string, earlier: Msg[], token: string): Promise<Reply | null> {
+  try {
+    const history = earlier.filter((m) => m.r === "u").slice(-3).map((m) => m.t)
+    const out = await knowledge.query(token, q, history)
+    if (out.status === "escalate") {
+      return {
+        k: "escalate",
+        category: out.category,
+        urgent: out.urgent,
+        text: out.category === "Wellbeing" ? "You don’t have to sort this out alone. A member of staff will read your message and reply." : "A member of staff needs to look at this. They’ll get your request as written, so you won’t need to repeat it.",
+      }
+    }
+    if (out.status !== "answered" || !out.citations.length) return null
+    const cites: Citation[] = out.citations.map((c) => ({ id: c.id, doc: c.document_name, location: c.location, excerpt: c.excerpt, documentId: c.document_id, chunkId: c.chunk_id }))
+    return { k: "answer", text: out.answer, src: cites.map((c) => c.id), cites }
+  } catch {
+    return null // service down, not configured, rate limited: keep the existing behaviour
+  }
+}
+
+/**
+ * Safety order matters: sensitive topics and weak matches never reach the AI.
+ * 1. Local sensitivity check (unchanged). 2. Synapse Knowledge, if signed in with Synapse Guard
+ *    (it runs Guard's server-side check, retrieval and grounded generation with citations).
+ * 3. Otherwise / on failure: the existing FAQ matching + /api/assist flow.
+ */
+export async function answerChat(q: string, earlier: Msg[], token?: string): Promise<Reply> {
   const category = sensitive(q)
   if (category) {
     return {
@@ -60,6 +90,10 @@ export async function answerChat(q: string, earlier: Msg[]): Promise<Reply> {
       urgent: isUrgent(q),
       text: category === "Wellbeing" ? "You don’t have to sort this out alone. A member of staff will read your message and reply." : "A member of staff needs to look at this. They’ll get your request as written, so you won’t need to repeat it.",
     }
+  }
+  if (token) {
+    const fromKnowledge = await askKnowledge(q, earlier, token)
+    if (fromKnowledge) return fromKnowledge
   }
   const words = [...new Set(toks(q))]
   const hits = INDEX.map(({ f, K, Q }, i) => ({ s: SOURCES[i], sc: words.reduce((n, w) => n + (K.has(w) ? 2 : Q.has(w) ? 1 : 0), 0), f }))

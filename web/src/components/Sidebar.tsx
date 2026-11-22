@@ -1,8 +1,8 @@
-import { ArrowUpRight, BadgeHelp, BookOpen, ClipboardList, Coins, HeartHandshake, LayoutDashboard, Scale, Sparkles } from "lucide-react"
+import { ArrowUpRight, BadgeHelp, BookOpen, ClipboardList, Coins, HeartHandshake, LayoutDashboard, Library, Scale, Sparkles } from "lucide-react"
 import { useApp } from "@/lib/app-context"
-import { useAuth } from "@/lib/auth"
+import { isKnowledgeAdmin, useAuth } from "@/lib/auth"
 
-const items = [
+const baseItems = [
   { slug: "ask", label: "Overview", icon: LayoutDashboard },
   { slug: "assist", label: "Synapse Assist", icon: Sparkles },
   { slug: "requests", label: "My requests", icon: ClipboardList },
@@ -16,6 +16,7 @@ const helpTiles = [
 export default function Sidebar({ route, onContact }: { route: string; onContact: (category: string | null, q: string) => void }) {
   const { requests } = useApp()
   const { student } = useAuth()
+  const items = isKnowledgeAdmin(student) ? [...baseItems, { slug: "knowledge", label: "Synapse Knowledge", icon: Library }] : baseItems
   const initials = (student?.name ?? "").split(/\s+/).map((p) => p[0]).join("").slice(0, 2)
   const open = requests.filter((r) => r.status !== "Resolved").length
 
@@ -32,7 +33,7 @@ export default function Sidebar({ route, onContact }: { route: string; onContact
       </section>
 
       <section className="sidebar-panel" data-reveal>
-        <div className="sidebar-panel__heading"><span>WORKSPACE</span><span>01—03</span></div>
+        <div className="sidebar-panel__heading"><span>WORKSPACE</span><span>01—0{items.length}</span></div>
         <nav aria-label="Student menu" className="space-y-1">
           {items.map((item, index) => {
             const Icon = item.icon

@@ -4,3 +4,11 @@ node_modules/
 *.log
 .vscode/
 .idea/
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+knowledge/data/
+knowledge/.env
+web/.env
+
