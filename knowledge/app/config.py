@@ -112,8 +112,8 @@ def load_settings() -> Settings:
 
     def provider_key(p: str, explicit: str) -> str:
         if env.get(explicit):
-            return env[explicit]
-        return {"gemini": env.get("GEMINI_API_KEY", ""), "openai": env.get("OPENAI_API_KEY", ""), "anthropic": env.get("ANTHROPIC_API_KEY", "")}.get(p, "")
+            return env[explicit].strip()
+        return {"gemini": env.get("GEMINI_API_KEY", ""), "openai": env.get("OPENAI_API_KEY", ""), "anthropic": env.get("ANTHROPIC_API_KEY", "")}.get(p, "").strip()
 
     storage = env.get("KNOWLEDGE_STORAGE_PATH")
     is_vercel = bool(env.get("VERCEL"))
@@ -129,11 +129,11 @@ def load_settings() -> Settings:
         guard_api_url=env.get("GUARD_API_URL", "").rstrip("/"),
         guard_fail_closed=env.get("GUARD_FAIL_MODE", "closed").lower() != "open",
         embedding_provider=provider,
-        embedding_model=env.get("EMBEDDING_MODEL", default_models.get(provider, "")),
+        embedding_model=env.get("EMBEDDING_MODEL", default_models.get(provider, "")).strip(),
         embedding_dimensions=_int("EMBEDDING_DIMENSIONS", default_dims.get(provider, 768)),
         embedding_api_key=provider_key(provider, "EMBEDDING_API_KEY"),
         llm_provider=llm,
-        llm_model=env.get("LLM_MODEL", llm_defaults.get(llm, "")),
+        llm_model=env.get("LLM_MODEL", llm_defaults.get(llm, "")).strip(),
         llm_api_key=provider_key(llm, "LLM_API_KEY"),
         llm_timeout_s=_float("LLM_TIMEOUT_S", 30.0),
         chunk_target_tokens=_int("CHUNK_TARGET_TOKENS", 500),
