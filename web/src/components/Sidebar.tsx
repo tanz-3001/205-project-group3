@@ -15,8 +15,8 @@ const helpTiles = [
 
 export default function Sidebar({ route, onContact }: { route: string; onContact: (category: string | null, q: string) => void }) {
   const { requests } = useApp()
-  const { student } = useAuth()
-  const items = isKnowledgeAdmin(student) ? [...baseItems, { slug: "knowledge", label: "Synapse Knowledge", icon: Library }] : baseItems
+  const { student, admin } = useAuth()
+  const items = isKnowledgeAdmin(student, admin) ? [...baseItems, { slug: "knowledge", label: "Synapse Knowledge", icon: Library }] : baseItems
   const initials = (student?.name ?? "").split(/\s+/).map((p) => p[0]).join("").slice(0, 2)
   const open = requests.filter((r) => r.status !== "Resolved").length
 

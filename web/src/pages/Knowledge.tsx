@@ -29,9 +29,9 @@ function StatusBadge({ s }: { s: DocStatus }) {
 type UploadItem = { key: string; name: string; size: number; pct: number; state: "uploading" | "done" | "error"; message?: string }
 
 export default function Knowledge() {
-  const { student } = useAuth()
-  const token = student?.token ?? ""
-  const admin = isKnowledgeAdmin(student)
+  const { student, admin: adminUser } = useAuth()
+  const token = adminUser?.token || student?.token || ""
+  const admin = isKnowledgeAdmin(student, adminUser) && Boolean(token)
   const [health, setHealth] = useState<Health | null>(null)
   const [stats, setStats] = useState<KStats | null>(null)
   const [docs, setDocs] = useState<KDocument[] | null>(null)
