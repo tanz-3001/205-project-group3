@@ -25,14 +25,19 @@ class Hit:
 
 
 class VectorStore:
-    def __init__(self, postgres: bool):
+    def __init__(self, postgres: bool, schema: str | None = None):
         self.postgres = postgres
+        self.schema = schema if postgres else None
         self.kind = "pgvector" if postgres else "sqlite"
+
+    def _q(self, table: str) -> str:
+        return f"{self.schema}.{table}" if self.schema else table
 
     def set_embedding(self, s: Session, chunk_id: str, vec: np.ndarray) -> None:
         if self.postgres:
             lit = "[" + ",".join(f"{float(x):.7f}" for x in vec) + "]"
-            s.execute(text("UPDATE document_chunks SET embedding = CAST(:v AS vector) WHERE id = :id"), {"v": lit, "id": chunk_id})
+            chunks_tbl = self._q("document_chunks")
+            s.execute(text(f"UPDATE {chunks_tbl} SET embedding = CAST(:v AS vector) WHERE id = :id"), {"v": lit, "id": chunk_id})
         else:
             s.execute(text("UPDATE document_chunks SET embedding = :v WHERE id = :id"), {"v": np.asarray(vec, dtype=np.float32).tobytes(), "id": chunk_id})
 
@@ -46,9 +51,11 @@ class VectorStore:
             params.update(dict(zip(names, document_ids)))
         if self.postgres:
             params["q"] = "[" + ",".join(f"{float(x):.7f}" for x in query) + "]"
+            chunks_tbl = self._q("document_chunks")
+            docs_tbl = self._q("documents")
             rows = s.execute(text(
                 "SELECT c.id, c.document_id, 1 - (c.embedding <=> CAST(:q AS vector)) AS score "
-                "FROM document_chunks c JOIN documents d ON d.id = c.document_id "
+                f"FROM {chunks_tbl} c JOIN {docs_tbl} d ON d.id = c.document_id "
                 f"WHERE d.processing_status = :st AND c.embedding IS NOT NULL{doc_filter} "
                 "ORDER BY c.embedding <=> CAST(:q AS vector) LIMIT :k"), params).all()
             return [Hit(r[0], r[1], float(r[2])) for r in rows]

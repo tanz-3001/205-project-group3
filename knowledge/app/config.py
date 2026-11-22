@@ -6,6 +6,7 @@ Secrets are never logged or returned by the API.
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -47,6 +48,7 @@ def _list(name: str, default: str) -> list[str]:
 @dataclass
 class Settings:
     database_url: str = ""
+    database_schema: str = "synapse"
     storage_path: Path = field(default_factory=lambda: BASE_DIR / "data" / "uploads")
 
     # Auth: tokens are issued by Synapse Guard (guard/src/auth.js). Same secret, same algorithm.
@@ -96,6 +98,22 @@ class Settings:
         return self.database_url.startswith(("postgresql", "postgres"))
 
 
+def _normalize_db_url(raw: str) -> str:
+    url = raw.strip()
+    if url.startswith("postgres://"):
+        return "postgresql+psycopg://" + url[len("postgres://"):]
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg://" + url[len("postgresql://"):]
+    return url
+
+
+def _clean_schema(raw: str) -> str:
+    val = raw.strip() or "synapse"
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", val):
+        raise ValueError("DATABASE_SCHEMA must be a valid SQL identifier.")
+    return val
+
+
 def load_settings() -> Settings:
     _load_dotenv(BASE_DIR / ".env")
     env = os.environ
@@ -120,8 +138,11 @@ def load_settings() -> Settings:
     default_db = "sqlite:////tmp/synapse_knowledge.db" if is_vercel else f"sqlite:///{(BASE_DIR / 'data' / 'knowledge.db').as_posix()}"
     default_storage = Path("/tmp/synapse_uploads") if is_vercel else (BASE_DIR / "data" / "uploads")
     default_jwt = env.get("JWT_SECRET") or ("dev-only-secret-change-me" if is_vercel else "")
+    raw_db = env.get("DATABASE_URL", "").strip()
+    db_url = _normalize_db_url(raw_db) if raw_db else default_db
     return Settings(
-        database_url=env.get("DATABASE_URL", default_db),
+        database_url=db_url,
+        database_schema=_clean_schema(env.get("DATABASE_SCHEMA", "synapse")),
         storage_path=Path(storage) if storage else default_storage,
         jwt_secret=default_jwt,
         admin_roles=_list("KNOWLEDGE_ADMIN_ROLES", "admin"),

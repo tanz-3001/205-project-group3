@@ -18,7 +18,7 @@ from sqlalchemy import delete, select, update
 from .chunking import chunk_blocks
 from .embeddings import EmbeddingError
 from .extraction import ExtractionError, extract
-from .models import Document, DocumentChunk, KbSetting, ProcessingJob, Status, new_id
+from .models import Document, DocumentChunk, DocumentFile, KbSetting, ProcessingJob, Status, new_id
 
 log = logging.getLogger("knowledge.processing")
 SIGNATURE_KEY = "embedding_signature"
@@ -121,7 +121,11 @@ class Processor:
         try:
             data = ctx.storage.read(key)
         except FileNotFoundError:
-            raise ExtractionError("The stored file is missing. Delete this document and upload it again.")
+            with ctx.db.session() as s:
+                blob = s.get(DocumentFile, document_id)
+                if blob is None:
+                    raise ExtractionError("The stored file is missing. Delete this document and upload it again.")
+                data = bytes(blob.data)
         extracted = extract(file_type, data)
         chunks = chunk_blocks(extracted.blocks, ctx.settings.chunk_target_tokens, ctx.settings.chunk_overlap_tokens, display)
         if not chunks:

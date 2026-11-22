@@ -518,6 +518,7 @@ class TestPortalPersistenceAndRequests:
         assert len(state["chats"]) == 1 and state["log"][0]["q"] == "Wi-Fi"
 
     def test_postgresql_migrations_and_vercel_database_url_config(self, monkeypatch, tmp_path):
+        import pytest
         from app.config import Settings, load_settings
         from app.db import MIGRATIONS
 
@@ -530,28 +531,86 @@ class TestPortalPersistenceAndRequests:
 
         class DummyPGDB:
             settings = Settings(database_url="postgresql+psycopg://u:p@localhost:5432/synapse", embedding_dimensions=768)
+            schema = "synapse"
 
-        # Verify pgvector extension, vector(768) column, and HNSW index are issued for PostgreSQL
+            def _q(self, table: str) -> str:
+                return f"{self.schema}.{table}"
+
+        # Verify pgvector extension, vector(768) column, HNSW index, document_files, and RLS are issued for PostgreSQL
         from unittest.mock import patch
         from app.models import Base
 
         with patch.object(Base.metadata, "create_all") as mock_create_all:
             for _, fn in MIGRATIONS:
                 fn(DummyPGDB(), DummyConn())
-            assert mock_create_all.call_count == 2
+            assert mock_create_all.call_count == 3
         assert any("CREATE EXTENSION IF NOT EXISTS vector" in s for s in executed_sql)
-        assert any("ADD COLUMN IF NOT EXISTS embedding vector(768)" in s for s in executed_sql)
+        assert any("ALTER TABLE synapse.document_chunks ADD COLUMN IF NOT EXISTS embedding vector(768)" in s for s in executed_sql)
         assert any("USING hnsw (embedding vector_cosine_ops)" in s for s in executed_sql)
         assert "portal_student_states" in Base.metadata.tables
+        assert "document_files" in Base.metadata.tables
+        for tbl in (
+            "documents",
+            "document_chunks",
+            "document_files",
+            "processing_jobs",
+            "audit_logs",
+            "kb_settings",
+            "portal_student_states",
+            "schema_migrations",
+        ):
+            assert any(f"ALTER TABLE synapse.{tbl} ENABLE ROW LEVEL SECURITY" in s for s in executed_sql)
 
-        # 2. Verify Vercel environment configuration honors external DATABASE_URL when set
+        # 2. Verify Vercel environment configuration normalizes external DATABASE_URL schemes and schema
         monkeypatch.setenv("VERCEL", "1")
-        monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://prod:secret@db.example.com:5432/synapse")
-        s_pg = load_settings()
-        assert s_pg.is_postgres is True
-        assert s_pg.database_url == "postgresql+psycopg://prod:secret@db.example.com:5432/synapse"
+        for raw_url, expected in [
+            ("postgres://prod:secret@db.example.com:6543/postgres", "postgresql+psycopg://prod:secret@db.example.com:6543/postgres"),
+            ("postgresql://prod:secret@db.example.com:6543/postgres", "postgresql+psycopg://prod:secret@db.example.com:6543/postgres"),
+            ("postgresql+psycopg://prod:secret@db.example.com:5432/synapse", "postgresql+psycopg://prod:secret@db.example.com:5432/synapse"),
+        ]:
+            monkeypatch.setenv("DATABASE_URL", raw_url)
+            s_pg = load_settings()
+            assert s_pg.is_postgres is True
+            assert s_pg.database_url == expected
+            assert s_pg.database_schema == "synapse"
+
+        monkeypatch.setenv("DATABASE_SCHEMA", "custom_kb")
+        assert load_settings().database_schema == "custom_kb"
+
+        monkeypatch.setenv("DATABASE_SCHEMA", "bad-schema;drop")
+        with pytest.raises(ValueError):
+            load_settings()
+        monkeypatch.delenv("DATABASE_SCHEMA", raising=False)
 
         # 3. Verify Vercel fallback when no external DATABASE_URL is configured
         monkeypatch.delenv("DATABASE_URL", raising=False)
         s_tmp = load_settings()
         assert s_tmp.database_url == "sqlite:////tmp/synapse_knowledge.db"
+
+    def test_document_file_db_fallback_for_reprocess(self, client, settings):
+        from app.models import DocumentFile
+
+        r = upload(client, "IT_Help_Desk_FAQ.txt", sample("IT_Help_Desk_FAQ.txt"), "text/plain")
+        assert r.status_code == 201
+        doc = r.json()["document"]
+        assert doc["processing_status"] == "indexed" and doc["version"] == 1
+
+        # Simulate ephemeral /tmp disk wipe: delete all stored upload files on disk
+        for f in settings.storage_path.rglob("*"):
+            if f.is_file():
+                f.unlink()
+        assert not [f for f in settings.storage_path.rglob("*") if f.is_file()]
+
+        # Reprocess still succeeds using DocumentFile binary backup in DB
+        reproc = client.post(f"{KB}/documents/{doc['id']}/reprocess", headers=auth("admin"))
+        assert reproc.status_code == 202
+        updated = reproc.json()["document"]
+        assert updated["processing_status"] == "indexed" and updated["version"] == 2
+
+        with client.app.state.ctx.db.session() as s:
+            assert s.get(DocumentFile, doc["id"]) is not None
+
+        # Deleting the document removes the stored DB file blob too
+        assert client.delete(f"{KB}/documents/{doc['id']}", headers=auth("admin")).status_code == 200
+        with client.app.state.ctx.db.session() as s:
+            assert s.get(DocumentFile, doc["id"]) is None

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -25,7 +26,7 @@ from .db import Database
 from .embeddings import EmbeddingProvider, build_embedder
 from .errors import ApiError
 from .guard_client import GuardClient, GuardUnavailable
-from .models import AuditLog, Document, DocumentChunk, PortalStudentState, ProcessingJob, Status
+from .models import AuditLog, Document, DocumentChunk, DocumentFile, PortalStudentState, ProcessingJob, Status
 from .processing import FileStorage, Processor, embedding_signature, stored_signature
 from .rag import answer_question, build_llm
 from .ratelimit import RateLimiter
@@ -132,6 +133,8 @@ def health(ctx: AppContext = Depends(get_ctx)) -> dict:
     return {
         "status": "ok" if ready else "degraded",
         "database": "ok" if db_ok else "error",
+        "persistent_database": s.is_postgres or not bool(os.environ.get("VERCEL")),
+        "database_schema": s.database_schema if s.is_postgres else None,
         "vector_store": ctx.vectors.kind,
         "auth_configured": bool(s.jwt_secret),
         "guard_configured": ctx.guard.configured,
@@ -181,6 +184,7 @@ async def upload(request: Request, file: UploadFile = File(...), display_name: s
                            checksum=checksum, storage_key=key, uploaded_by=user.id, uploaded_by_name=user.name or user.id)
             s.add(doc)
             s.flush()
+            s.add(DocumentFile(document_id=doc.id, data=data))
             job = ctx.processor.enqueue(s, doc, "upload")  # type: ignore[union-attr]
             audit(s, user, "upload", doc.id, filename=v.filename, size=len(data), checksum=checksum)
             s.flush()
@@ -537,7 +541,7 @@ def update_portal_request(
 
 
 def _auto_seed_sample_docs(ctx: AppContext) -> None:
-    """On Vercel cold start with an empty SQLite DB, seed the bundled sample university documents."""
+    """On Vercel cold start with an empty database, seed the bundled sample university documents."""
     from .config import BASE_DIR
     sample_dir = BASE_DIR / "sample_docs"
     if not sample_dir.is_dir() or ctx.embedder is None:
@@ -554,6 +558,9 @@ def _auto_seed_sample_docs(ctx: AppContext) -> None:
             checksum = hashlib.sha256(data).hexdigest()
             key = ctx.storage.save(data, v.file_type)
             with ctx.db.session() as s:
+                if s.scalar(select(Document.id).where(Document.checksum == checksum)) is not None:
+                    ctx.storage.delete(key)
+                    continue
                 doc = Document(
                     filename=v.filename,
                     display_name=display_name_from(v.filename),
@@ -567,6 +574,7 @@ def _auto_seed_sample_docs(ctx: AppContext) -> None:
                 )
                 s.add(doc)
                 s.flush()
+                s.add(DocumentFile(document_id=doc.id, data=data))
                 job = ctx.processor.enqueue(s, doc, "upload")  # type: ignore[union-attr]
                 s.add(AuditLog(actor_id="u_2", actor_role="admin", action="seed_upload", document_id=doc.id, metadata_json={"filename": v.filename}))
                 s.flush()
@@ -579,7 +587,6 @@ def _auto_seed_sample_docs(ctx: AppContext) -> None:
 # ---------------------------------------------------------------- app factory
 def create_app(settings: Settings | None = None, *, embedder: EmbeddingProvider | None | str = "auto", llm: object | None | str = "auto",
                guard: GuardClient | None = None, sync_processing: bool | None = None) -> FastAPI:
-    import os
     from .vectorstore import VectorStore
 
     settings = settings or load_settings()
@@ -591,7 +598,7 @@ def create_app(settings: Settings | None = None, *, embedder: EmbeddingProvider 
     emb = build_embedder(settings) if embedder == "auto" else embedder
     gen = build_llm(settings) if llm == "auto" else llm
     ctx = AppContext(settings=settings, db=db, storage=FileStorage(settings.storage_path), embedder=emb, llm=gen,  # type: ignore[arg-type]
-                     guard=guard or GuardClient(settings.guard_api_url), vectors=VectorStore(settings.is_postgres), sync_processing=sync_processing)
+                     guard=guard or GuardClient(settings.guard_api_url), vectors=VectorStore(settings.is_postgres, settings.database_schema if settings.is_postgres else None), sync_processing=sync_processing)
     ctx.processor = Processor(ctx)
 
     app = FastAPI(title="Synapse Knowledge", version="1.0.0", docs_url="/api/knowledge/docs", openapi_url="/api/knowledge/openapi.json")
