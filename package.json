@@ -1,0 +1,12 @@
+{
+  "name": "synapse-monorepo",
+  "private": true,
+  "scripts": {
+    "build": "cd web && npm ci && npm run build"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2"
+  }
+}

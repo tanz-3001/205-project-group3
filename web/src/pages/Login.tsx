@@ -11,9 +11,14 @@ export default function Login() {
   const [id, setId] = useState("")
   const [pw, setPw] = useState("")
   const [err, setErr] = useState("")
-  const submit = (e: FormEvent) => {
+  const [busy, setBusy] = useState(false)
+  const submit = async (e: FormEvent) => {
     e.preventDefault()
-    setErr(signIn(id, pw) ?? "")
+    if (busy) return
+    setBusy(true)
+    const msg = await signIn(id, pw)
+    setBusy(false)
+    setErr(msg ?? "")
   }
   return (
     <div className="app-canvas grid min-h-screen place-items-center bg-page px-4 py-10 text-ink">
@@ -26,17 +31,17 @@ export default function Login() {
           </div>
           <div>
             <h2 className="text-2xl font-bold text-navy">Sign in</h2>
-            <p className="text-sm text-muted-ink">Use your student ID and portal password.</p>
+            <p className="text-sm text-muted-ink">Use your student ID or university email, and your portal password.</p>
           </div>
-          <label className="grid gap-1.5 font-semibold text-navy">Student ID
-            <input className={field} value={id} onChange={(e) => setId(e.target.value)} autoComplete="username" inputMode="numeric" placeholder="S2041877" aria-describedby="login-err" />
+          <label className="grid gap-1.5 font-semibold text-navy">Student ID or email
+            <input className={field} value={id} onChange={(e) => setId(e.target.value)} autoComplete="username" placeholder="S2041877 or name@demo.ac.ae" aria-describedby="login-err" />
           </label>
           <label className="grid gap-1.5 font-semibold text-navy">Password
             <input className={field} type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="current-password" aria-describedby="login-err" />
           </label>
           <p id="login-err" role="alert" className="min-h-5 text-sm font-semibold text-[#B4281B]">{err}</p>
-          <Button type="submit" className="min-h-12 bg-brand text-base text-white hover:bg-brand-dark">Sign in</Button>
-          <p className="text-sm text-muted-ink">Forgot your password? Contact the IT Help Desk. <b>Demo:</b> any ID like S2041877 and a password of 6+ characters.</p>
+          <Button type="submit" disabled={busy} className="min-h-12 bg-brand text-base text-white hover:bg-brand-dark">{busy ? "Signing in…" : "Sign in"}</Button>
+          <p className="text-sm text-muted-ink">Forgot your password? Contact the IT Help Desk. <b>Demo:</b> any ID like S2041877 and a password of 6+ characters, or a Synapse Guard demo account (student@demo.ac.ae / Student#123, admin@demo.ac.ae / Admin#123) for knowledge-base answers and administration.</p>
         </form>
       </div>
     </div>

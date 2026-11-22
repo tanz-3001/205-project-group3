@@ -1,0 +1,23 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "cd web && npm ci && npm run build",
+  "outputDirectory": "web/dist",
+  "rewrites": [
+    {
+      "source": "/api/knowledge/:path*",
+      "destination": "/api/knowledge.py"
+    },
+    {
+      "source": "/api/auth/:path*",
+      "destination": "/api/guard.js"
+    },
+    {
+      "source": "/api/guard/:path*",
+      "destination": "/api/guard.js"
+    },
+    {
+      "source": "/api/admin/:path*",
+      "destination": "/api/guard.js"
+    }
+  ]
+}

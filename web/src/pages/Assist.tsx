@@ -15,8 +15,8 @@ const toTranscript = (m: Msg[]) => m.map((x) => (x.r === "u" ? "Student: " : "As
 function Cited({ text, src }: { text: string; src: string[] }) {
   return (
     <>
-      {text.split(/(\[s\d+\])/g).map((p, i) => {
-        const m = /^\[(s\d+)\]$/.exec(p)
+      {text.split(/(\[[sS]\d+\])/g).map((p, i) => {
+        const m = /^\[([sS]\d+)\]$/.exec(p)
         if (!m) return p
         const n = src.indexOf(m[1])
         return n < 0 ? null : <sup key={i} className="mx-0.5 rounded bg-brand-soft px-1.5 text-[0.7rem] font-bold text-brand">{n + 1}</sup>
@@ -38,10 +38,24 @@ function Bubble({ m, lastQ, all, onContact }: { m: Msg; lastQ: string; all: Msg[
     )
   }
   const src = m.src ?? []
+  const cites = m.cites ?? []
   return (
     <article className="rounded-2xl border border-line bg-white p-5 animate-in fade-in slide-in-from-bottom-2">
       <p className="mb-3 max-w-[64ch] text-[1.05rem] leading-relaxed"><Cited text={m.t} src={src} /></p>
-      {src.length > 0 && (
+      {cites.length > 0 && (
+        <div className="mb-3 grid gap-1.5">
+          <span className="text-sm text-muted-ink">Sources from university documents</span>
+          {cites.map((c, i) => (
+            <details key={c.id} className="group rounded-lg border border-dashed border-[#A9BDB9] open:border-solid open:bg-page">
+              <summary className="flex min-h-10 cursor-pointer list-none flex-wrap items-center gap-2 px-3 py-1.5 text-sm text-muted-ink hover:text-brand [&::-webkit-details-marker]:hidden">
+                <sup className="rounded bg-brand-soft px-1.5 text-[0.7rem] font-bold text-brand">{i + 1}</sup><FileText aria-hidden="true" className="size-4" /><span className="font-semibold text-navy">{c.doc}</span>{c.location && <span>· {c.location}</span>}
+              </summary>
+              <div className="border-l-4 border-brand px-3 py-2 text-sm"><p className="whitespace-pre-line">{c.excerpt}</p></div>
+            </details>
+          ))}
+        </div>
+      )}
+      {cites.length === 0 && src.length > 0 && (
         <div className="mb-3 grid gap-1.5">
           <span className="text-sm text-muted-ink">Sources</span>
           {src.map((id, i) => {
@@ -94,10 +108,10 @@ export default function Assist({ onContact }: Props) {
     saveChat(withQ)
     setText("")
     setBusy(true)
-    const out = await answerChat(q, base.msgs)
-    const m: Msg = out.k === "answer" ? { r: "a", k: "answer", t: out.text, src: out.src } : { r: "a", k: "escalate", t: out.text, category: out.category, urgent: out.urgent }
+    const out = await answerChat(q, base.msgs, student?.token)
+    const m: Msg = out.k === "answer" ? { r: "a", k: "answer", t: out.text, src: out.src, ...(out.cites ? { cites: out.cites } : {}) } : { r: "a", k: "escalate", t: out.text, category: out.category, urgent: out.urgent }
     saveChat({ ...withQ, msgs: [...withQ.msgs, m] })
-    addEntry({ q, tag: out.k === "answer" ? (sourceById(out.src[0])?.topic ?? "General") : out.category, type: out.k === "answer" ? "answered" : "escalated" })
+    addEntry({ q, tag: out.k === "answer" ? (out.cites ? "Knowledge base" : (sourceById(out.src[0])?.topic ?? "General")) : out.category, type: out.k === "answer" ? "answered" : "escalated" })
     setBusy(false)
   }
   const submit = (e: FormEvent) => {
