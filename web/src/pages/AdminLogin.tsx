@@ -39,6 +39,10 @@ export default function AdminLogin() {
           </label>
           <p id="admin-login-err" role="alert" className="min-h-5 text-sm font-semibold text-[#B4281B]">{err}</p>
           <Button type="submit" disabled={busy} className="min-h-12 bg-brand text-base text-white hover:bg-brand-dark">{busy ? "Signing in…" : "Sign in"}</Button>
+          <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3 text-xs">
+            <span className="font-semibold text-muted-ink">Quick fill demo:</span>
+            <button type="button" onClick={() => { setEmail("admin@demo.ac.ae"); setPw("Admin#123"); setErr("") }} className="rounded-lg border border-line bg-page px-2.5 py-1.5 font-semibold text-navy hover:border-brand hover:bg-brand-soft">Demo admin</button>
+          </div>
           <p className="text-sm text-muted-ink"><b>Demo:</b> admin@demo.ac.ae with Admin#123 (the Synapse Guard demo admin). <a href="#" className="font-semibold text-brand underline">← Back to overview</a></p>
         </form>
       </div>

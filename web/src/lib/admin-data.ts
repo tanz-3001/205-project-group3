@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type { Entry, Req, Status } from "@/lib/app-context"
 import { knowledge } from "@/lib/knowledge"
 
@@ -248,7 +248,7 @@ export async function updateStudentRequest(
   patch: { status: Status; reply?: string },
   adminToken?: string,
   fallbackSnapshot?: AdminReq,
-): Promise<void> {
+): Promise<{ synced: boolean; error?: string }> {
   const key = PREFIX + studentId
   const replyClean = patch.reply?.trim() ?? ""
   const staffAt = Date.now()
@@ -282,18 +282,21 @@ export async function updateStudentRequest(
   }
   window.dispatchEvent(new CustomEvent("synapse:portal-updated"))
 
-  if (adminToken) {
-    try {
-      await knowledge.updatePortalRequest(adminToken, studentId, requestId, {
-        status: patch.status,
-        reply: replyClean,
-        request_snapshot: snapshot,
-      })
-    } catch {
-      /* backend unreachable: localStorage update already applied */
-    }
+  if (!adminToken) {
+    return { synced: false, error: "Admin session has no server token; saved locally only." }
   }
-  window.dispatchEvent(new CustomEvent("synapse:portal-updated"))
+  try {
+    await knowledge.updatePortalRequest(adminToken, studentId, requestId, {
+      status: patch.status,
+      reply: replyClean,
+      request_snapshot: snapshot,
+    })
+    window.dispatchEvent(new CustomEvent("synapse:portal-updated"))
+    return { synced: true }
+  } catch (err) {
+    const error = err instanceof Error ? err.message : "Could not save changes to the server."
+    return { synced: false, error }
+  }
 }
 
 /**
@@ -302,49 +305,71 @@ export async function updateStudentRequest(
  */
 export function useAdminData(adminToken?: string) {
   const [remote, setRemote] = useState<StudentRecord[]>([])
+  const [syncError, setSyncError] = useState<string | null>(null)
   const [snap, setSnap] = useState(() => ({ records: readRecords(), at: Date.now(), changedAt: 0 }))
+  const prevRemoteJsonRef = useRef("")
+  const pullRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
-    const refresh = (changed = false) =>
+    let live = true
+    const refreshLocal = (changed = false) =>
       setSnap((p) => ({
-        records: mergeStudentRecords(readRecords(), remote),
+        records: readRecords(),
         at: Date.now(),
         changedAt: changed ? Date.now() : p.changedAt,
       }))
     const pullRemote = () => {
-      if (!adminToken) return
+      if (!adminToken) {
+        setSyncError(null)
+        return
+      }
       knowledge
         .listPortalRecords(adminToken)
         .then((res) => {
+          if (!live) return
           const parsed: StudentRecord[] = (res.records ?? []).map((r) => ({
             studentId: r.studentId,
             log: arr(r.log, isEntry),
             requests: arr(r.requests, isReq),
             ratings: arr(r.ratings, (x): x is boolean => typeof x === "boolean"),
           }))
-          setRemote(parsed)
+          const json = JSON.stringify(parsed)
+          const didChange = json !== prevRemoteJsonRef.current
+          if (didChange) {
+            prevRemoteJsonRef.current = json
+            setRemote(parsed)
+          }
+          setSyncError(null)
+          setSnap((p) => ({
+            records: readRecords(),
+            at: Date.now(),
+            changedAt: didChange ? Date.now() : p.changedAt,
+          }))
         })
-        .catch(() => {
-          /* ignore */
+        .catch((err) => {
+          if (!live) return
+          const msg = err instanceof Error ? err.message : "Could not load records from the server."
+          setSyncError(msg)
         })
     }
-    refresh()
+    pullRef.current = pullRemote
+    refreshLocal()
     pullRemote()
     const onStorage = (e: StorageEvent) => {
-      if (e.key === null || e.key.startsWith(PREFIX)) refresh(true)
+      if (e.key === null || e.key.startsWith(PREFIX)) refreshLocal(true)
     }
     const onCustom = () => {
-      refresh(true)
+      refreshLocal(true)
       pullRemote()
     }
     const onVisible = () => {
       if (document.visibilityState === "visible") {
-        refresh()
+        refreshLocal()
         pullRemote()
       }
     }
     const timer = window.setInterval(() => {
-      refresh()
+      refreshLocal()
       pullRemote()
     }, 15_000)
     window.addEventListener("storage", onStorage)
@@ -352,14 +377,22 @@ export function useAdminData(adminToken?: string) {
     window.addEventListener("focus", onVisible)
     document.addEventListener("visibilitychange", onVisible)
     return () => {
+      live = false
+      pullRef.current = null
       window.clearInterval(timer)
       window.removeEventListener("storage", onStorage)
       window.removeEventListener("synapse:portal-updated", onCustom)
       window.removeEventListener("focus", onVisible)
       document.removeEventListener("visibilitychange", onVisible)
     }
-  }, [adminToken, remote])
-  return { ...snap, records: mergeStudentRecords(readRecords(), remote) }
+  }, [adminToken])
+
+  const records = useMemo(() => mergeStudentRecords(snap.records, remote), [snap.records, remote])
+  const refreshNow = () => {
+    setSnap((p) => ({ ...p, records: readRecords(), at: Date.now() }))
+    pullRef.current?.()
+  }
+  return { ...snap, records, syncError, refreshNow }
 }
 
 export const fmtMs = (ms: number | null) => (ms === null ? "-" : ms < 1 ? "<1 ms" : ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`)

@@ -1,3 +1,4 @@
+import { RefreshCw } from "lucide-react"
 import { useMemo, useState } from "react"
 import type { ReactNode } from "react"
 import ActivityChart from "@/components/ActivityChart"
@@ -79,7 +80,7 @@ function QueryStatus({ q }: { q: Query }) {
 }
 
 export default function AdminDashboard({ admin }: { admin: Admin }) {
-  const { records, at, changedAt } = useAdminData(admin.token)
+  const { records, at, changedAt, syncError, refreshNow } = useAdminData(admin.token)
   const [range, setRange] = useState<Range>("7d")
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["id"]>("all")
   const [reqFilter, setReqFilter] = useState<"open" | "all">("open")
@@ -102,11 +103,21 @@ export default function AdminDashboard({ admin }: { admin: Admin }) {
             <h1 className="text-3xl font-bold tracking-tight text-navy sm:text-4xl">Admin dashboard</h1>
             <p className="mt-1 max-w-[62ch] text-muted-ink">What students are asking, how the portal is answering, and where people need help.</p>
           </div>
-          <p key={changedAt} className="inline-flex items-center gap-2 rounded-full border border-line bg-white px-3.5 py-1.5 text-sm text-muted-ink animate-in fade-in duration-700 motion-reduce:animate-none">
-            <i aria-hidden="true" className="size-2 rounded-full bg-[#2f9e6b] shadow-[0_0_0_3px_rgba(47,158,107,0.15)]" />
-            Live · updated {updated}
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p key={changedAt} className="inline-flex items-center gap-2 rounded-full border border-line bg-white px-3.5 py-1.5 text-sm text-muted-ink animate-in fade-in duration-700 motion-reduce:animate-none">
+              <i aria-hidden="true" className="size-2 rounded-full bg-[#2f9e6b] shadow-[0_0_0_3px_rgba(47,158,107,0.15)]" />
+              Live · updated {updated}
+            </p>
+            <Button type="button" variant="outline" className="min-h-9 rounded-full bg-white px-3.5 text-xs font-semibold" onClick={refreshNow}>
+              <RefreshCw aria-hidden="true" className="size-3.5" />Refresh
+            </Button>
+          </div>
         </div>
+        {syncError && (
+          <p role="alert" className="mb-4 rounded-xl border border-[#e0b86b] bg-[#FBEFD0] px-4 py-3 text-sm font-medium text-[#5C4300]">
+            Server sync warning: {syncError} Showing cached browser records if available.
+          </p>
+        )}
         <p role="status" className="sr-only">{m.total} questions recorded from {m.activeStudents} students.</p>
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
@@ -368,9 +379,13 @@ function ManageRequestDialog({
   const save = async () => {
     if (saving) return
     setSaving(true)
-    await updateStudentRequest(req.studentId, req.id, { status, reply }, adminToken, req)
+    const res = await updateStudentRequest(req.studentId, req.id, { status, reply }, adminToken, req)
     setSaving(false)
-    onSaved(`Updated request #${req.id} (${req.studentId}) to "${status}".`)
+    if (res.synced) {
+      onSaved(`Updated request #${req.id} (${req.studentId}) to "${status}".`)
+    } else {
+      onSaved(`Updated request #${req.id} locally (${res.error ?? "server sync failed"}).`)
+    }
   }
 
   return (

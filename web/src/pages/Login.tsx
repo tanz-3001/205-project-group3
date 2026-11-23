@@ -19,7 +19,15 @@ export default function Login() {
     const msg = await signIn(id, pw)
     setBusy(false)
     setErr(msg ?? "")
-    if (!msg) window.location.hash = "#ask"
+    if (!msg) {
+      let toAdmin = false
+      try {
+        toAdmin = id.trim().includes("@") && Boolean(sessionStorage.getItem("synapse:admin-session:v1"))
+      } catch {
+        /* ignore storage error */
+      }
+      window.location.hash = toAdmin ? "#admin" : "#ask"
+    }
   }
   const fillDemo = (demoId: string, demoPw: string) => {
     setId(demoId)
