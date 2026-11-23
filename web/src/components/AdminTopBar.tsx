@@ -26,7 +26,7 @@ export default function AdminTopBar({ admin, route = "admin" }: { admin: Admin; 
         <nav aria-label="Admin" className="order-3 flex w-full items-center gap-1 pb-3 sm:order-none sm:ml-2 sm:w-auto sm:flex-1 sm:pb-0">
           <a href="#admin" aria-current={route === "admin" ? "page" : undefined} className={tab(route === "admin")}>Dashboard</a>
           <a href="#knowledge" aria-current={route === "knowledge" ? "page" : undefined} className={tab(route === "knowledge")}>Synapse Knowledge</a>
-          <a href="#ask" className={tab(false)}>Student portal <ExternalLink aria-hidden="true" className="size-3.5" /></a>
+          <a href="#" className={tab(false)}>Portal home <ExternalLink aria-hidden="true" className="size-3.5" /></a>
         </nav>
         <div className="ml-auto flex shrink-0 items-center gap-1.5 pb-3 sm:pb-0">
           <details className="group relative">

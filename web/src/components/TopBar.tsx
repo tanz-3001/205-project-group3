@@ -1,7 +1,7 @@
 import { Bell, ChevronDown, LogOut, MessageSquare, Search, Sparkles } from "lucide-react"
 import type { MouseEvent } from "react"
 import { useApp } from "@/lib/app-context"
-import { isKnowledgeAdmin, useAuth } from "@/lib/auth"
+import { useAuth } from "@/lib/auth"
 import { PAGES } from "@/lib/data"
 import { go } from "@/lib/route"
 
@@ -23,7 +23,7 @@ function focusAssist() {
 
 export default function TopBar({ route }: { route: string }) {
   const { requests } = useApp()
-  const { student, admin, signOut } = useAuth()
+  const { student, signOut } = useAuth()
   const open = requests.filter((r) => r.status !== "Resolved").length
   const current = PAGES.find((p) => p.slug === route)
   const academic = PAGES.filter((p) => p.nav === "academic")
@@ -62,7 +62,6 @@ export default function TopBar({ route }: { route: string }) {
           <a href="#fees" aria-current={current?.nav === "fees" ? "page" : undefined} className={tab(current?.nav === "fees")}>Fees</a>
           <a href="#it" aria-current={current?.nav === "it" ? "page" : undefined} className={tab(current?.nav === "it")}>IT support</a>
           <a href="#support" aria-current={current?.nav === "support" ? "page" : undefined} className={tab(current?.nav === "support")}>People & support</a>
-          {isKnowledgeAdmin(student, admin) && <a href="#admin" className={tab(false)}>Admin</a>}
         </nav>
         <div className="ml-auto flex shrink-0 items-center gap-1.5 pb-3 sm:pb-0">
           <button aria-label="Search services" onClick={focusAsk} className={iconBtn}><Search aria-hidden="true" className="size-[18px]" /></button>

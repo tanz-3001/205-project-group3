@@ -36,20 +36,19 @@ const KEY = "synapse:session:v1"
 const ADMIN_KEY = "synapse:admin-session:v1"
 const AuthContext = createContext<AuthCtx | null>(null)
 
-/**
- * Admin accounts reuse the Synapse Guard demo accounts (guard/INTEGRATION.md): same email, same
- * salted SHA-256 hash, so no password is stored in code. Replace with SSO + a server-side role check.
- */
-const ADMINS = [{ email: "admin@demo.ac.ae", name: "Ada Admin", hash: "b569a00f26714158bd8f54f28048c56e02a4a35b76e9fa3d6e581398679d5cca" }]
-const SALT = "synapse-demo-salt"
 const ADMIN_SESSION_MS = 2 * 60 * 60 * 1000
 const MAX_FAILS = 5
 const LOCK_MS = 60 * 1000
 const lock = { fails: 0, until: 0 }
 
-async function sha256(text: string): Promise<string> {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${SALT}:${text}`))
-  return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("")
+function jwtRole(token?: string): string | null {
+  if (!token) return null
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))) as { role?: unknown }
+    return typeof payload.role === "string" ? payload.role : null
+  } catch {
+    return null
+  }
 }
 
 function tokenExpiry(token: string): number | undefined {
@@ -88,23 +87,25 @@ function load(): Student | null {
     if (!s) return null
     if (s.token && s.expiresAt && s.expiresAt < Date.now()) return null
     const clean: Student = { ...s, name: cleanDemoName(s.name || "") }
-    if (clean.guardRole === "admin" && clean.token) return clean
-    // A regular student session can never carry an Admin role unless backed by a Guard token.
-    return clean.role !== "Admin" && (/^S\d{6,8}$/.test(clean.id) || /^u_\d+$/.test(clean.id)) ? clean : null
+    if (clean.role === "Admin" || clean.guardRole === "admin" || jwtRole(clean.token) === "admin") return null
+    return /^S\d{6,8}$/.test(clean.id) || /^u_\d+$/.test(clean.id) ? clean : null
   } catch {
     return null
   }
 }
 
-/** Admin sessions live in sessionStorage (per tab, 2 hours) and are re-checked against the account list. */
+/** Admin sessions live in sessionStorage (per tab, 2 hours) and require an active Guard admin JWT. */
 function loadAdmin(): Admin | null {
   try {
+    if (load()) {
+      sessionStorage.removeItem(ADMIN_KEY)
+      return null
+    }
     const raw = sessionStorage.getItem(ADMIN_KEY)
-    const s = raw ? (JSON.parse(raw) as { email?: string; until?: number; token?: string; expiresAt?: number }) : null
-    const acct = s && ADMINS.find((a) => a.email === s.email)
-    if (!acct || typeof s?.until !== "number" || s.until <= Date.now()) return null
-    if (s.expiresAt && s.expiresAt < Date.now()) return null
-    return { email: acct.email, name: acct.name, role: "Admin", token: s.token, expiresAt: s.expiresAt }
+    const s = raw ? (JSON.parse(raw) as { email?: string; name?: string; until?: number; token?: string; expiresAt?: number }) : null
+    if (!s || typeof s.email !== "string" || typeof s.until !== "number" || s.until <= Date.now()) return null
+    if (!s.token || (s.expiresAt && s.expiresAt < Date.now()) || jwtRole(s.token) !== "admin") return null
+    return { email: s.email, name: cleanDemoName(s.name || "Ada Admin"), role: "Admin", token: s.token, expiresAt: s.expiresAt }
   } catch {
     return null
   }
@@ -134,28 +135,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [student])
 
-  // If an admin session in sessionStorage has no Guard token yet, refresh it silently.
-  useEffect(() => {
-    if (!admin || admin.token) return
-    let live = true
-    fetchGuardToken("admin@demo.ac.ae", "Admin#123").then((out) => {
-      if (!live || typeof out === "string") return
-      const exp = tokenExpiry(out.token)
-      const next: Admin = { ...admin, token: out.token, expiresAt: exp }
+  const value = useMemo<AuthCtx>(() => {
+    const clearStudentStorage = () => {
       try {
-        sessionStorage.setItem(ADMIN_KEY, JSON.stringify({ email: admin.email, until: Date.now() + ADMIN_SESSION_MS, token: out.token, expiresAt: exp }))
+        localStorage.removeItem(KEY)
       } catch {
         /* ignore */
       }
-      setAdmin(next)
-    })
-    return () => {
-      live = false
+      setStudent(null)
     }
-  }, [admin])
-
-  const value = useMemo<AuthCtx>(() => {
+    const clearAdminStorage = () => {
+      try {
+        sessionStorage.removeItem(ADMIN_KEY)
+      } catch {
+        /* ignore */
+      }
+      setAdmin(null)
+    }
     const persistStudent = (next: Student) => {
+      clearAdminStorage()
       try {
         localStorage.setItem(KEY, JSON.stringify(next))
       } catch {
@@ -163,10 +161,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setStudent(next)
     }
-    const persistAdmin = (acct: { email: string; name: string }, token?: string) => {
-      const expiresAt = token ? tokenExpiry(token) : undefined
+    const persistAdmin = (acct: { email: string; name: string }, token: string) => {
+      clearStudentStorage()
+      const expiresAt = tokenExpiry(token)
       try {
-        sessionStorage.setItem(ADMIN_KEY, JSON.stringify({ email: acct.email, until: Date.now() + ADMIN_SESSION_MS, token, expiresAt }))
+        sessionStorage.setItem(ADMIN_KEY, JSON.stringify({ email: acct.email, name: acct.name, until: Date.now() + ADMIN_SESSION_MS, token, expiresAt }))
       } catch {
         /* ignore */
       }
@@ -178,36 +177,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInAdmin: async (rawEmail, password) => {
         if (Date.now() < lock.until) return "Too many attempts. Try again in a minute."
         const email = rawEmail.trim().toLowerCase()
-        const acct = ADMINS.find((a) => a.email === email)
-        let ok = false
-        try {
-          ok = (await sha256(password)) === acct?.hash
-        } catch {
-          return "Admin sign-in needs a secure connection (https or localhost)."
-        }
-        if (!acct || !ok) {
+        if (!email || !password) return "Enter your admin email and password."
+        const guardOut = await fetchGuardToken(email, password)
+        if (typeof guardOut === "string") {
           lock.fails += 1
           if (lock.fails >= MAX_FAILS) {
             lock.fails = 0
             lock.until = Date.now() + LOCK_MS
             return "Too many attempts. Try again in a minute."
           }
-          return "Email or password is incorrect."
+          return guardOut
+        }
+        if (guardOut.user.role !== "admin" || jwtRole(guardOut.token) !== "admin") {
+          return "Access denied. Administrator accounts only."
         }
         lock.fails = 0
-        const guardOut = await fetchGuardToken(email, password)
-        const token = typeof guardOut === "string" ? undefined : guardOut.token
-        persistAdmin(acct, token)
+        persistAdmin({ email: guardOut.user.email || email, name: cleanDemoName(guardOut.user.name || "Ada Admin") }, guardOut.token)
         return null
       },
       signOutAdmin: () => {
-        try {
-          sessionStorage.removeItem(ADMIN_KEY)
-        } catch {
-          /* ignore */
-        }
-        setAdmin(null)
-        window.location.hash = "#ask"
+        clearStudentStorage()
+        clearAdminStorage()
+        window.location.hash = ""
       },
       signIn: async (rawId, password) => {
         const input = rawId.trim()
@@ -215,21 +206,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (!password) return "Enter your password."
           const out = await fetchGuardToken(input.toLowerCase(), password)
           if (typeof out === "string") return out
-          const role = out.user.role === "admin" ? "admin" : "student"
+          const role = out.user.role === "admin" && jwtRole(out.token) === "admin" ? "admin" : "student"
+          if (role === "admin") {
+            persistAdmin({ email: out.user.email || input.toLowerCase(), name: cleanDemoName(out.user.name || "Ada Admin") }, out.token)
+            return null
+          }
           const exp = tokenExpiry(out.token)
           persistStudent({
             id: out.user.id,
             name: cleanDemoName(out.user.name || out.user.email || "User"),
             email: out.user.email,
-            role: role === "admin" ? "Administrator" : "Student",
-            guardRole: role,
+            role: "Student",
+            guardRole: "student",
             token: out.token,
             expiresAt: exp,
           })
-          if (role === "admin") {
-            const acct = ADMINS.find((a) => a.email === input.toLowerCase()) ?? { email: input.toLowerCase(), name: cleanDemoName(out.user.name || "Ada Admin") }
-            persistAdmin(acct, out.token)
-          }
           return null
         }
         const id = input.toUpperCase()
@@ -238,7 +229,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const sid = id.startsWith("S") ? id : "S" + id
         let token: string | undefined
         const guardOut = await fetchGuardToken(sid, password)
-        if (typeof guardOut !== "string") token = guardOut.token
+        if (typeof guardOut !== "string") {
+          if (guardOut.user.role === "admin" || jwtRole(guardOut.token) === "admin") {
+            return "Use administrator sign-in to access staff accounts."
+          }
+          token = guardOut.token
+        }
         persistStudent({
           id: sid,
           name: sid === "S2041877" ? "Layla A." : "Student " + sid.slice(-4),
@@ -250,12 +246,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return null
       },
       signOut: () => {
-        try {
-          localStorage.removeItem(KEY)
-        } catch {
-          /* ignore */
-        }
-        setStudent(null)
+        clearStudentStorage()
+        clearAdminStorage()
         window.location.hash = ""
       },
     }
@@ -271,4 +263,4 @@ export function useAuth(): AuthCtx {
 
 /** UI hint only. The knowledge service enforces the admin role on every request. */
 export const isKnowledgeAdmin = (s?: Student | null, a?: Admin | null) =>
-  Boolean((s?.guardRole === "admin" && s.token) || a?.role === "Admin")
+  Boolean(a && a.role === "Admin" && a.token && jwtRole(a.token) === "admin" && !s)

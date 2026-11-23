@@ -1,6 +1,6 @@
-import { ArrowUpRight, BadgeHelp, BookOpen, ClipboardList, Coins, HeartHandshake, LayoutDashboard, Library, Scale, ShieldCheck, Sparkles } from "lucide-react"
+import { ArrowUpRight, BadgeHelp, BookOpen, ClipboardList, Coins, HeartHandshake, LayoutDashboard, Scale, Sparkles } from "lucide-react"
 import { useApp } from "@/lib/app-context"
-import { isKnowledgeAdmin, useAuth } from "@/lib/auth"
+import { useAuth } from "@/lib/auth"
 
 const baseItems = [
   { slug: "ask", label: "Overview", icon: LayoutDashboard },
@@ -15,10 +15,8 @@ const helpTiles = [
 
 export default function Sidebar({ route, onContact }: { route: string; onContact: (category: string | null, q: string) => void }) {
   const { requests } = useApp()
-  const { student, admin } = useAuth()
-  const items = isKnowledgeAdmin(student, admin)
-    ? [...baseItems, { slug: "knowledge", label: "Synapse Knowledge", icon: Library }, { slug: "admin", label: "Admin dashboard", icon: ShieldCheck }]
-    : baseItems
+  const { student } = useAuth()
+  const items = baseItems
   const initials = (student?.name ?? "").split(/\s+/).map((p) => p[0]).join("").slice(0, 2)
   const open = requests.filter((r) => r.status !== "Resolved").length
 

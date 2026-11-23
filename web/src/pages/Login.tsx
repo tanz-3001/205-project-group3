@@ -62,7 +62,6 @@ export default function Login() {
             <span className="font-semibold text-muted-ink">Quick fill demo:</span>
             <button type="button" onClick={() => fillDemo("S2041877", "Student#123")} className="rounded-lg border border-line bg-page px-2.5 py-1.5 font-semibold text-navy hover:border-brand hover:bg-brand-soft">Student (Layla A.)</button>
             <button type="button" onClick={() => fillDemo("student@demo.ac.ae", "Student#123")} className="rounded-lg border border-line bg-page px-2.5 py-1.5 font-semibold text-navy hover:border-brand hover:bg-brand-soft">Guard Student</button>
-            <button type="button" onClick={() => fillDemo("admin@demo.ac.ae", "Admin#123")} className="rounded-lg border border-line bg-page px-2.5 py-1.5 font-semibold text-navy hover:border-brand hover:bg-brand-soft">Admin (Full Access)</button>
           </div>
           <p className="text-sm text-muted-ink">Forgot your password? Contact the IT Help Desk. Administrator? <a href="#admin" className="font-semibold text-brand underline">Admin sign-in</a></p>
         </form>
