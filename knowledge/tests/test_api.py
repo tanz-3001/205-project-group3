@@ -616,11 +616,11 @@ class TestPortalPersistenceAndRequests:
             assert s.get(DocumentFile, doc["id"]) is None
 
 
-def test_all_ten_sample_documents_index_and_retrieve(client):
+def test_all_sample_documents_index_and_retrieve(client):
     from conftest import SAMPLES
 
     sample_files = sorted(p for p in SAMPLES.iterdir() if p.is_file())
-    assert len(sample_files) == 10
+    assert len(sample_files) == 16
 
     for p in sample_files:
         mime = "application/pdf" if p.suffix == ".pdf" else ("text/plain" if p.suffix == ".txt" else "")
@@ -628,7 +628,7 @@ def test_all_ten_sample_documents_index_and_retrieve(client):
         assert r.status_code == 201, f"{p.name}: {r.text}"
 
     docs = client.get(f"{KB}/documents", headers=auth("admin")).json()["documents"]
-    assert len(docs) == 10
+    assert len(docs) == 16
     assert all(d["processing_status"] == "indexed" and d["chunk_count"] > 0 for d in docs)
 
     checks = [
@@ -639,6 +639,12 @@ def test_all_ten_sample_documents_index_and_retrieve(client):
         ("Magna Cum Laude Summa diploma commencement", "Graduation and Academic Honours Guide 2026"),
         ("extra examination time quiet room learning accommodations", "Health Safety and Accessibility Services"),
         ("semester exchange Global Mobility Transfer Pass learning agreement", "Exchange and Study Abroad Handbook 2026"),
+        ("Research Ethics Committee REC generative AI disclosure", "Academic Integrity and Research Ethics Policy 2026"),
+        ("Chancellor Award Merit Entrance Sibling Grant", "Scholarships Bursaries and Financial Aid Guide 2026"),
+        ("Airport Meet Greet Shuttle Peer Buddy International Student Office", "International Student Onboarding and Campus Life Guide 2026"),
+        ("BSc Computer Science Cybersecurity Capstone Change of Major", "Undergraduate and Postgraduate Programme Catalogue 2026"),
+        ("Smoke Free Campus lecture recording Student Ombuds Office", "Student Code of Conduct and Campus Policies 2026"),
+        ("Makerspace 3D printers PLA filament Arduino Mini Grants", "Innovation Labs Makerspace and Student Research Guide 2026"),
     ]
     for query_text, expected_doc in checks:
         sr = client.post(f"{KB}/search", json={"query": query_text, "top_k": 5}, headers=auth("admin"))

@@ -1,0 +1,23 @@
+# Student Code of Conduct and Campus Policies 2026
+
+SAMPLE DOCUMENT - fictional content for the Synapse prototype. Not real university policy.
+
+## Campus Community Standards
+
+All members of Synapse Demo University are expected to uphold mutual respect, honesty, and care for shared campus spaces, laboratories, and digital environments. Physical or verbal intimidation, property damage, or disruption of teaching and library quiet zones violates the Student Code of Conduct.
+
+## Classroom and Lecture Recording Policy
+
+Students must obtain explicit permission from the module instructor before making personal audio or video recordings of lectures, seminars, or guest talks, unless approved as a formal learning accommodation through the Accessibility and Inclusion Office. Official lecture recordings posted on SynapseLearn are strictly for private study and must not be redistributed externally.
+
+## Smoke-Free and Clean Campus Policy
+
+Synapse Demo University operates a smoke-free campus. Smoking and vaping are strictly prohibited inside all academic buildings, residential halls, shuttles, and within 15 metres of building entrances. Designated outdoor shelters are signposted behind Building B and Building D.
+
+## Acceptable Use of Campus IT and Networks
+
+University accounts, Wi-Fi credentials, and virtual lab sessions are strictly personal and must never be shared. Students must not run unauthorised network scanning tools, host commercial cryptocurrency mining processes, or attempt to bypass authentication controls on campus infrastructure.
+
+## Student Ombuds Office
+
+The Student Ombuds Office in Building B, Room 302 is open Sunday to Thursday from 09:00 to 16:00 and provides confidential, impartial guidance to help students understand university policies and navigate formal procedures.

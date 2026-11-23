@@ -43,19 +43,23 @@ export const SOURCES: Source[] = FAQS.map((f, i) => {
 export const sourceById = (id: string) => SOURCES.find((s) => s.id === id)
 
 export type Reply =
-  | { k: "answer"; text: string; src: string[]; cites?: Citation[]; conversational?: boolean }
+  | { k: "answer"; text: string; src: string[]; cites?: Citation[]; conversational?: boolean; suggestions?: string[] }
   | { k: "escalate"; text: string; category: string; urgent: boolean; /** true when no official source answered a non-sensitive question */ unknown?: boolean }
 
 export function conversationalReply(q: string): string | null {
-  const norm = q.trim().toLowerCase().replace(/[!?.]+$/g, "").replace(/\s+/g, " ")
+  const norm = q.trim().toLowerCase().replace(/[!?.,]+$/g, "").replace(/['’]/g, "").replace(/\s+/g, " ")
   if (!norm) return null
-  if (/^(?:hi+|hello+|hey+|good (?:morning|afternoon|evening)|salam|assalamu ?alaikum|yo|sup|hola|howdy)(?: (?:there|synapse|assist|bot|bro|team))?$/i.test(norm)) {
-    return "Hi! I’m Synapse Assist. Ask me anything about courses, academic dates, fees, IT support, campus housing, shuttles, library rooms, internships, graduation, or accessibility accommodations."
+  if (/^(?:hi+|hello+|helo|hlo|hey+|good (?:morning|afternoon|evening)|salam|assalamu ?alaikum|yo+|sup|hola|howdy)(?: (?:there|synapse|assist|bot|bro|team|everyone))?$/i.test(norm)) {
+    return "Hi! I’m Synapse Assist. What can I help you with today? Ask me about courses, deadlines, exams, fees, campus Wi-Fi, printing, library hours, housing, shuttles, internships, graduation, or accessibility."
   }
-  if (/^(?:how are you(?: doing)?|who are you|what (?:are you|can you do|can you help(?: me)? with)|help(?: me)?|start|menu)$/i.test(norm)) {
-    return "I’m Synapse Assist — I search official university policies and handbooks to give grounded answers with source citations. Try asking about deadlines, coursework rules, Wi-Fi, printing quotas, library bookings, or housing."
+  const body = norm.replace(/^(?:hi+|hello+|helo|hlo|hey+|yo+|sup|salam|assalamu ?alaikum|good (?:morning|afternoon|evening)|excuse me|bro|synapse|assist)[,\s]+/i, "")
+  if (/^(?:(?:i )?(?:really )?(?:need|want)(?: some| a little| your| ur)? (?:h?elp|halp|hlep|assistance|support)|(?:can|could|will|would) (?:you|u) (?:please |pls |plz )?(?:h?elp|halp|hlep|assist)(?: me)?|(?:please |pls |plz )?(?:h?elp|halp|hlep|assist)(?: me)?|(?:i )?(?:have|got) a (?:quick )?(?:question|doubt|query)|(?:can|may) i ask (?:you |u )?(?:a question|something)|(?:i )?(?:want|wanna) (?:to )?ask something|quick question|im confused|i am confused|where do i start|not sure where to start)(?: (?:please|pls|plz|right now|rn|bro|man|synapse|assist|team))?$/i.test(body)) {
+    return "Of course — I’m here to help! Tell me what you need help with (like courses, deadlines, exams, Wi-Fi, printing, library hours, housing, shuttles, internships, or graduation) and I’ll check the official university documents with citations. You can also click a topic below or choose Ask staff."
   }
-  if (/^(?:thanks(?: a lot| so much)?|thank you(?: so much| very much)?|thx|ty|cheers|ok|okay|got it|cool|great|bye|goodbye)$/i.test(norm)) {
+  if (/^(?:how are you(?: doing)?|who are you|what (?:are you|can you do|can you help(?: me)? with|topics do you (?:cover|know)|documents do you have|do you know)|how do (?:you|u) work|start|menu)$/i.test(body)) {
+    return "I’m Synapse Assist — I search 16 official university guides and handbooks using Gemini RAG to give grounded answers with source citations. Pick a quick topic below or ask your own question!"
+  }
+  if (/^(?:thanks(?: a lot| so much)?|thank you(?: so much| very much)?|thx|ty|cheers|ok|okay|got it|cool|great|awesome|nice|bye|goodbye|see ya)$/i.test(body)) {
     return "You’re welcome! Let me know anytime if you need help finding another policy or raising a request with staff."
   }
   return null
@@ -65,6 +69,38 @@ export function conversationalReply(q: string): string | null {
 export type Citation = { id: string; doc: string; location: string; excerpt: string; documentId: string; chunkId: string }
 
 const gap = (text: string, category = "General"): Reply => ({ k: "escalate", text, category, urgent: false, unknown: true })
+
+async function askGeminiChat(q: string, earlier: Msg[]): Promise<Reply | null> {
+  try {
+    const ctl = new AbortController()
+    const timer = window.setTimeout(() => ctl.abort(), 15000)
+    const res = await fetch("/api/assist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: ctl.signal,
+      body: JSON.stringify({
+        mode: "chat",
+        question: q,
+        earlier: earlier.filter((m) => m.r === "u").slice(-3).map((m) => m.t),
+      }),
+    })
+    window.clearTimeout(timer)
+    if (!res.ok) return null
+    const data = (await res.json()) as { answer?: unknown; escalate?: unknown; suggestions?: unknown }
+    if (data.escalate === true) {
+      return gap(typeof data.answer === "string" && data.answer.trim() ? data.answer.trim() : "I couldn’t find an official source that answers this, so I won’t guess. Staff can take it from here.")
+    }
+    if (typeof data.answer === "string" && data.answer.trim()) {
+      const suggestions = Array.isArray(data.suggestions)
+        ? data.suggestions.filter((x): x is string => typeof x === "string" && x.trim().length > 0).slice(0, 3)
+        : undefined
+      return { k: "answer", text: data.answer.trim(), src: [], conversational: true, ...(suggestions?.length ? { suggestions } : {}) }
+    }
+  } catch {
+    /* API unavailable: fall back to offline conversational helper or abstain */
+  }
+  return null
+}
 
 /**
  * Ask Synapse Knowledge (indexed university documents). Returns null when the knowledge service
@@ -91,10 +127,11 @@ async function askKnowledge(q: string, earlier: Msg[], token: string): Promise<R
 }
 
 /**
- * Safety order matters: sensitive topics and weak matches never reach the AI.
- * 1. Local sensitivity check (unchanged). 2. Synapse Knowledge, if signed in with Synapse Guard
- *    (it runs Guard's server-side check, retrieval and grounded generation with citations).
- * 3. Otherwise / on failure: the existing FAQ matching + /api/assist flow.
+ * Safety order matters: sensitive topics always escalate first.
+ * 1. Local sensitivity check.
+ * 2. Synapse Knowledge (16-doc pgvector RAG + Guard + Gemini citation verification), when signed in.
+ * 3. Local FAQ synthesis via /api/assist when matched.
+ * 4. Gemini chat with Synapse Assist system prompt (/api/assist mode=chat) for greetings, help, and guidance; offline regex fallback if unreachable.
  */
 export async function answerChat(q: string, earlier: Msg[], token?: string): Promise<Reply> {
   const category = sensitive(q)
@@ -106,9 +143,7 @@ export async function answerChat(q: string, earlier: Msg[], token?: string): Pro
       text: category === "Wellbeing" ? "You don’t have to sort this out alone. A member of staff will read your message and reply." : "A member of staff needs to look at this. They’ll get your request as written, so you won’t need to repeat it.",
     }
   }
-  const chatty = conversationalReply(q)
-  if (chatty) return { k: "answer", text: chatty, src: [], conversational: true }
-  if (token) {
+  if (token && q.trim().length >= 3) {
     const fromKnowledge = await askKnowledge(q, earlier, token)
     if (fromKnowledge) return fromKnowledge
   }
@@ -117,7 +152,13 @@ export async function answerChat(q: string, earlier: Msg[], token?: string): Pro
     .filter((x) => x.sc > 0)
     .sort((a, b) => b.sc - a.sc)
     .slice(0, 3)
-  if (!hits.length || hits[0].sc < 2) return gap("I couldn’t find an official source that answers this, so I won’t guess. Staff can take it from here.")
+  if (!hits.length || hits[0].sc < 2) {
+    const chatOut = await askGeminiChat(q, earlier)
+    if (chatOut) return chatOut
+    const chatty = conversationalReply(q)
+    if (chatty) return { k: "answer", text: chatty, src: [], conversational: true }
+    return gap("I couldn’t find an official source that answers this, so I won’t guess. Staff can take it from here.")
+  }
 
   const fallback: Reply = { k: "answer", text: `${hits[0].s.passage} [${hits[0].s.id}]`, src: [hits[0].s.id] }
   try {

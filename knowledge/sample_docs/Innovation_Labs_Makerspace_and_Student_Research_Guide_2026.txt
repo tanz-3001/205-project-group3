@@ -1,0 +1,19 @@
+# Innovation Labs, Makerspace and Student Research Guide 2026
+
+SAMPLE DOCUMENT - fictional content for the Synapse prototype. Not real university policy.
+
+## Synapse Innovation Hub and Makerspace
+
+The Synapse Innovation Hub and Makerspace in Building E, Level 1 is open to all enrolled students Sunday to Thursday from 09:00 to 21:00 and Saturdays from 10:00 to 18:00. Trained lab stewards are on duty during all open hours to assist students with rapid prototyping and project fabrication.
+
+## Equipment, 3D Printing and Induction
+
+Students may access Bambu Lab and Prusa FFF 3D printers (including a complimentary 250 grams of PLA filament per student each semester), a CO2 laser cutter, soldering and embedded electronics benches, and Meta Quest and HoloLens extended-reality headsets. Every user must complete the 45-minute Safety Induction Badge module in the student portal before booking fabrication equipment.
+
+## Media and Hardware Loan Desk
+
+Students working on coursework, capstones, or approved society projects may borrow DSLR cameras, wireless lapel microphones, graphics drawing tablets, Raspberry Pi 5 boards, and Arduino sensor kits free of charge for up to 7 calendar days using a valid Student ID card.
+
+## Undergraduate Research Grants and Startup Pitch Competition
+
+Students collaborating with a faculty mentor may apply for Undergraduate Research Mini-Grants of up to AED 5,000 per project team to fund datasets, open-source cloud compute, or lab components; grant cycles close each October and March. Every April, the university hosts the annual Synapse Innovation and Startup Pitch Competition featuring an AED 25,000 prototype prize fund and mentorship from regional founders.

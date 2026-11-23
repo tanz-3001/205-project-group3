@@ -108,6 +108,38 @@ GRADUATION: SectionList = [
     (None, 0, "University alumni retain lifetime access to Campus Wi-Fi visitor passes, Career Services consultations for 2 years post-graduation, and Main Library reading-room privileges."),
 ]
 
+INTEGRITY_ETHICS: SectionList = [
+    ("Academic Integrity and Research Ethics Policy 2026", 1, None),
+    (None, 0, NOTICE),
+    ("1. Citation and Referencing Standards", 2, None),
+    (None, 0, "All written coursework, laboratory reports, and research outputs must acknowledge external sources using an approved academic citation style: APA 7th Edition for Psychology and Social Sciences, IEEE for Engineering and Computing, or Harvard for Business programmes."),
+    (None, 0, "Students can attend weekly citation and reference-manager drop-in workshops hosted by Subject Research Librarians or consult style templates on SynapseLearn before submitting coursework."),
+    ("2. Responsible Use of Generative AI in Coursework", 2, None),
+    (None, 0, "Unless restricted by a module syllabus, students may use generative AI tools for brainstorming outlines, grammar proofreading, or explaining core concepts. Submitting unattributed AI-generated essays, code, or fabricated references as one's own original work is strictly prohibited."),
+    (None, 0, "Every major coursework submission includes a mandatory AI Use Disclosure box on SynapseLearn stating which tool was used, the purpose of assistance, and confirming final human verification of all claims and citations."),
+    ("3. Collaboration and Group Assessment Rules", 2, None),
+    (None, 0, "Where group coursework is assigned, each team submits a signed Contribution Log confirming shared responsibility. Unless explicitly permitted as joint work, sharing assignment drafts or source code across individual assessments is classified as collusion."),
+    ("4. Undergraduate and Postgraduate Research Ethics Approval", 2, None),
+    (None, 0, "Any capstone, honours thesis, or research project involving human participants, surveys, interviews, or personal datasets requires prior approval from the University Research Ethics Committee (REC)."),
+    (None, 0, "Students submit the online REC Protocol Form with Participant Information Sheets and Informed Consent Forms at least 10 working days before data collection begins; standard low-risk reviews complete within 10 working days."),
+    ("5. Academic Writing Support", 2, None),
+    (None, 0, "The Academic Writing Centre in Building B, Room 205 is open Sunday to Thursday from 09:00 to 17:00, offering free 30-minute one-on-one consultations on thesis structure, paraphrasing, literature synthesis, and citation accuracy."),
+]
+
+SCHOLARSHIPS_AID: SectionList = [
+    ("Scholarships, Bursaries and Financial Aid Guide 2026", 1, None),
+    (None, 0, NOTICE),
+    ("1. Merit Entrance Awards", 2, None),
+    (None, 0, "Incoming undergraduate students are automatically assessed for Merit Entrance tuition reductions based on verified final secondary school averages: 25 percent tuition reduction for 90.0 to 94.9 percent, 40 percent reduction for 95.0 to 97.9 percent, and the 50 percent Chancellor's Award for averages of 98.0 percent or higher."),
+    (None, 0, "To retain a Merit Entrance Award in subsequent academic years, recipients must maintain a full-time course load (at least 12 credit hours per regular semester) and achieve a cumulative GPA of 3.30 or higher at each annual June review."),
+    ("2. Continuing Student Excellence Awards", 2, None),
+    (None, 0, "Enrolled students not already on a higher entrance scholarship who achieve a cumulative GPA of 3.75 or higher across two consecutive regular semesters (at least 24 graded credits) qualify for the Dean's Academic Excellence Award, providing a 15 percent tuition credit for the following academic year."),
+    ("3. Family, Alumni and Community Leadership Bursaries", 2, None),
+    (None, 0, "Eligible students may apply for one supplementary bursary per academic year: a 10 percent Sibling Grant when two or more immediate siblings attend concurrently, a 15 percent Alumni Family Grant for children of Synapse Demo University graduates, or a 20 percent Community and Extracurricular Leadership Bursary for documented civic or campus leadership."),
+    ("4. Annual Review and Application Deadlines", 2, None),
+    (None, 0, "Applications for supplementary bursaries and continuing awards close on 15 July for Fall semester and 15 December for Spring semester via the Finance section of the student portal. Decisions are issued by the Financial Aid Committee within 15 working days of deadline closure."),
+]
+
 
 def _build_pdf(
     path: Path,
@@ -299,6 +331,69 @@ def make_careers_internships_docx(path: Path) -> None:
     d.save(path)
 
 
+def make_international_onboarding_docx(path: Path) -> None:
+    d = docx.Document()
+    d.styles["Normal"].font.size = Pt(11)
+    d.add_heading("International Student Onboarding and Campus Life Guide 2026", 0)
+    d.add_paragraph(NOTICE)
+
+    d.add_heading("1. Pre-Arrival and First-Week Checklist", 1)
+    d.add_paragraph("New international students follow a structured pre-arrival and Week 1 onboarding timeline coordinated by Student Services.")
+    _add_table(
+        d,
+        ("Stage", "Timing", "Action"),
+        [
+            ("Airport Meet & Greet Shuttle", "At least 7 days before arrival", "Submit flight itinerary in the Arrival portal to book complimentary airport transfer"),
+            ("Temporary Arrival Housing", "Up to 5 nights prior to check-in", "Request early arrival room allocation via Housing Support before standard move-in"),
+            ("Orientation & ID Card Pickup", "Week 1 (Orientation Week)", "Attend Welcome Briefing in Building A Auditorium and collect physical + digital Student ID"),
+            ("Local SIM & Bank Letter Request", "First 5 working days", "Request an official enrolment confirmation letter via Documents for local telecom and banking"),
+        ],
+    )
+
+    d.add_heading("2. International Student Office", 1)
+    d.add_paragraph("The International Student Office is located in Building A, Room 210, open Sunday to Thursday from 08:30 to 16:30. Dedicated student advisors assist with settling-in orientation, issuing official enrolment and bank introduction letters, and referring students to specialist staff for formal travel or entry documentation enquiries.")
+
+    d.add_heading("3. Peer Buddy Programme and Cultural Societies", 1)
+    d.add_paragraph("Every incoming international student can sign up for the Peer Buddy Programme to be paired with a trained senior student buddy two weeks before classes begin. Student Life hosts the Welcome Mixer in Week 1 and the campus-wide Cultural Festival each November with over 25 student-led national and cultural societies.")
+
+    d.add_heading("4. English Academic Skills Workshops", 1)
+    d.add_paragraph("The Centre for Academic Skills offers free weekly workshops covering academic writing structure, seminar participation, oral presentations, and technical report vocabulary. Sessions are bookable through the student portal with no extra tuition fee.")
+    d.save(path)
+
+
+def make_programme_catalogue_docx(path: Path) -> None:
+    d = docx.Document()
+    d.styles["Normal"].font.size = Pt(11)
+    d.add_heading("Undergraduate and Postgraduate Programme Catalogue 2026", 0)
+    d.add_paragraph(NOTICE)
+
+    d.add_heading("1. Degree Programmes Overview", 1)
+    d.add_paragraph("Synapse Demo University offers accredited undergraduate and postgraduate degree programmes across Computing, Engineering, Business, and Social Sciences.")
+    _add_table(
+        d,
+        ("Programme", "Level", "Credits", "Duration", "Faculty Building"),
+        [
+            ("BSc Computer Science", "Undergraduate", "120 credits", "4 years", "Building E"),
+            ("BSc Cybersecurity", "Undergraduate", "120 credits", "4 years", "Building E"),
+            ("BEng Software Engineering", "Undergraduate", "132 credits", "4 years", "Building E"),
+            ("BBA Business Analytics", "Undergraduate", "120 credits", "4 years", "Building A"),
+            ("BA Psychology", "Undergraduate", "120 credits", "4 years", "Building B"),
+            ("MSc Data Science and Artificial Intelligence", "Postgraduate", "36 credits", "1.5-2 years", "Building E"),
+            ("Master of Business Administration (MBA)", "Postgraduate", "42 credits", "2 years", "Building A"),
+        ],
+    )
+
+    d.add_heading("2. Minors and Free Electives", 1)
+    d.add_paragraph("Undergraduate students may declare an academic Minor by completing 18 designated credits in a secondary discipline (such as Cybersecurity, Data Analytics, Entrepreneurship, or Cognitive Psychology) and may choose up to 12 credits of free electives across faculties.")
+
+    d.add_heading("3. Change of Major Procedure", 1)
+    d.add_paragraph("Students wishing to change their declared major must have completed at least 15 credit hours at Synapse Demo University with a cumulative GPA of 2.50 or higher. Change of Major applications are submitted through Academic Advising in the portal before the end of Week 10 for the next semester.")
+
+    d.add_heading("4. Final-Year Capstone Project and Peer Tutoring (PASS)", 1)
+    d.add_paragraph("All undergraduate degrees culminate in a two-semester Final-Year Capstone Project supervised by a faculty member and showcased at the public Innovation Demo Day. First- and second-year students can also attend free weekly Peer-Assisted Study Sessions (PASS) led by high-achieving senior peers in core mathematics, programming, and accounting modules.")
+    d.save(path)
+
+
 # --------------------------------------------------------------------------- TXTs
 IT_FAQ = f"""# IT Help Desk FAQ
 
@@ -395,6 +490,52 @@ Before departure, nominated students must have a Learning Agreement signed by th
 Outgoing students on an approved reciprocal exchange continue paying their standard Synapse Demo University home tuition and do not pay additional tuition to the host university. Flights, housing abroad, living expenses, and entry travel documents remain the student's responsibility. All exchange participants must hold comprehensive international medical and emergency evacuation insurance covering the full dates of stay and upload proof to the Global Mobility portal before departure.
 """
 
+STUDENT_CONDUCT_TXT = f"""# Student Code of Conduct and Campus Policies 2026
+
+{NOTICE}
+
+## Campus Community Standards
+
+All members of Synapse Demo University are expected to uphold mutual respect, honesty, and care for shared campus spaces, laboratories, and digital environments. Physical or verbal intimidation, property damage, or disruption of teaching and library quiet zones violates the Student Code of Conduct.
+
+## Classroom and Lecture Recording Policy
+
+Students must obtain explicit permission from the module instructor before making personal audio or video recordings of lectures, seminars, or guest talks, unless approved as a formal learning accommodation through the Accessibility and Inclusion Office. Official lecture recordings posted on SynapseLearn are strictly for private study and must not be redistributed externally.
+
+## Smoke-Free and Clean Campus Policy
+
+Synapse Demo University operates a smoke-free campus. Smoking and vaping are strictly prohibited inside all academic buildings, residential halls, shuttles, and within 15 metres of building entrances. Designated outdoor shelters are signposted behind Building B and Building D.
+
+## Acceptable Use of Campus IT and Networks
+
+University accounts, Wi-Fi credentials, and virtual lab sessions are strictly personal and must never be shared. Students must not run unauthorised network scanning tools, host commercial cryptocurrency mining processes, or attempt to bypass authentication controls on campus infrastructure.
+
+## Student Ombuds Office
+
+The Student Ombuds Office in Building B, Room 302 is open Sunday to Thursday from 09:00 to 16:00 and provides confidential, impartial guidance to help students understand university policies and navigate formal procedures.
+"""
+
+INNOVATION_LABS_TXT = f"""# Innovation Labs, Makerspace and Student Research Guide 2026
+
+{NOTICE}
+
+## Synapse Innovation Hub and Makerspace
+
+The Synapse Innovation Hub and Makerspace in Building E, Level 1 is open to all enrolled students Sunday to Thursday from 09:00 to 21:00 and Saturdays from 10:00 to 18:00. Trained lab stewards are on duty during all open hours to assist students with rapid prototyping and project fabrication.
+
+## Equipment, 3D Printing and Induction
+
+Students may access Bambu Lab and Prusa FFF 3D printers (including a complimentary 250 grams of PLA filament per student each semester), a CO2 laser cutter, soldering and embedded electronics benches, and Meta Quest and HoloLens extended-reality headsets. Every user must complete the 45-minute Safety Induction Badge module in the student portal before booking fabrication equipment.
+
+## Media and Hardware Loan Desk
+
+Students working on coursework, capstones, or approved society projects may borrow DSLR cameras, wireless lapel microphones, graphics drawing tablets, Raspberry Pi 5 boards, and Arduino sensor kits free of charge for up to 7 calendar days using a valid Student ID card.
+
+## Undergraduate Research Grants and Startup Pitch Competition
+
+Students collaborating with a faculty mentor may apply for Undergraduate Research Mini-Grants of up to AED 5,000 per project team to fund datasets, open-source cloud compute, or lab components; grant cycles close each October and March. Every April, the university hosts the annual Synapse Innovation and Startup Pitch Competition featuring an AED 25,000 prototype prize fund and mentorship from regional founders.
+"""
+
 
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
@@ -422,12 +563,28 @@ def main() -> None:
         GRADUATION,
         page_break_prefixes=("3.",),
     )
+    _build_pdf(
+        OUT / "Academic_Integrity_and_Research_Ethics_Policy_2026.pdf",
+        "Academic Integrity & Ethics 2026",
+        INTEGRITY_ETHICS,
+        page_break_prefixes=("4.",),
+    )
+    _build_pdf(
+        OUT / "Scholarships_Bursaries_and_Financial_Aid_Guide_2026.pdf",
+        "Scholarships & Aid Guide 2026",
+        SCHOLARSHIPS_AID,
+        page_break_prefixes=("3.",),
+    )
     make_student_handbook_docx(OUT / "Student_Handbook_2026.docx")
     make_housing_transport_docx(OUT / "Campus_Housing_and_Transport_Guide_2026.docx")
     make_careers_internships_docx(OUT / "Careers_Internships_and_Placements_Guide_2026.docx")
+    make_international_onboarding_docx(OUT / "International_Student_Onboarding_and_Campus_Life_Guide_2026.docx")
+    make_programme_catalogue_docx(OUT / "Undergraduate_and_Postgraduate_Programme_Catalogue_2026.docx")
     (OUT / "IT_Help_Desk_FAQ.txt").write_text(IT_FAQ, encoding="utf-8")
     (OUT / "Health_Safety_and_Accessibility_Services.txt").write_text(HEALTH_ACCESSIBILITY_TXT, encoding="utf-8")
     (OUT / "Exchange_and_Study_Abroad_Handbook_2026.txt").write_text(EXCHANGE_ABROAD_TXT, encoding="utf-8")
+    (OUT / "Student_Code_of_Conduct_and_Campus_Policies_2026.txt").write_text(STUDENT_CONDUCT_TXT, encoding="utf-8")
+    (OUT / "Innovation_Labs_Makerspace_and_Student_Research_Guide_2026.txt").write_text(INNOVATION_LABS_TXT, encoding="utf-8")
     for p in sorted(OUT.iterdir()):
         if p.is_file():
             print(f"{p.name}: {p.stat().st_size} bytes")

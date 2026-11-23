@@ -14,19 +14,26 @@ const STARTERS = [
   "When are the Fall 2026 add/drop and final exam dates?",
   "What are the library opening hours and study room rules?",
   "What are the campus housing fees and shuttle bus routes?",
-  "How do credit-bearing internships and on-campus jobs work?",
-  "How do I connect to campus Wi-Fi and use campus printing?",
+  "What equipment is available in the Innovation Labs and Makerspace?",
+  "What undergraduate and postgraduate programmes are offered?",
+]
+const QUICK_CHIPS = [
+  "What is the late submission policy?",
+  "What are the library opening hours?",
+  "How do I connect to campus Wi-Fi?",
+  "What are the campus shuttle routes?",
 ]
 type Props = { onContact: (category: string | null, q: string, transcript?: string[]) => void }
 const toTranscript = (m: Msg[]) => m.map((x) => (x.r === "u" ? "Student: " : "Assist: ") + x.t)
 
-function Bubble({ m, lastQ, all, onContact }: { m: Msg; lastQ: string; all: Msg[]; onContact: Props["onContact"] }) {
+function Bubble({ m, lastQ, all, onContact, onPick }: { m: Msg; lastQ: string; all: Msg[]; onContact: Props["onContact"]; onPick: (q: string) => void }) {
   if (m.r === "u") return <div className="max-w-[85%] self-end rounded-2xl rounded-br-sm bg-brand px-4 py-2.5 text-white">{m.t}</div>
   if (m.k === "escalate" && m.unknown) {
     return (
       <article className="rounded-2xl border border-line bg-white p-5 animate-in fade-in slide-in-from-bottom-2">
         <h3 className="mb-1 flex items-center gap-2 text-lg font-bold text-navy"><HelpCircle aria-hidden="true" className="size-5 text-brand" />Couldn’t find that in official university documents</h3>
-        <p className="mb-3 max-w-[64ch]">{m.t}</p>
+        <p className="mb-2 max-w-[64ch]">{m.t}</p>
+        <p className="mb-3 max-w-[64ch] text-sm text-muted-ink">Try asking about a specific university topic (exams, library hours, Wi-Fi, housing, shuttles, or internships), or send your question to staff.</p>
         <Button variant="outline" onClick={() => onContact(null, lastQ, toTranscript(all))}>Ask staff</Button>
       </article>
     )
@@ -47,8 +54,17 @@ function Bubble({ m, lastQ, all, onContact }: { m: Msg; lastQ: string; all: Msg[
     <article className="rounded-2xl border border-line bg-white p-5 animate-in fade-in slide-in-from-bottom-2">
       <p className="mb-3 max-w-[64ch] text-[1.05rem] leading-relaxed"><CitedText text={m.t} src={src} /></p>
       <SourceList src={src} cites={cites} />
+      {m.conversational && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          {(m.suggestions?.length ? m.suggestions : QUICK_CHIPS).map((q) => (
+            <button key={q} type="button" onClick={() => onPick(q)} className="rounded-full border border-line bg-page px-3 py-1.5 text-sm font-semibold text-navy transition hover:border-brand hover:bg-brand-soft">
+              {q}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="text-muted-ink">Not what you needed?</span>
+        <span className="text-muted-ink">{m.conversational ? "Prefer a person?" : "Not what you needed?"}</span>
         <Button variant="outline" onClick={() => onContact(null, lastQ, toTranscript(all))}>Ask staff</Button>
       </div>
     </article>
@@ -90,7 +106,7 @@ export default function Assist({ onContact }: Props) {
       const ms = Math.round(performance.now() - t0)
       const m: Msg =
         out.k === "answer"
-          ? { r: "a", k: "answer", t: out.text, src: out.src, ...(out.cites ? { cites: out.cites } : {}) }
+          ? { r: "a", k: "answer", t: out.text, src: out.src, ...(out.cites ? { cites: out.cites } : {}), ...(out.conversational ? { conversational: true } : {}), ...(out.suggestions?.length ? { suggestions: out.suggestions } : {}) }
           : { r: "a", k: "escalate", t: out.text, category: out.category, urgent: out.urgent, ...(out.unknown ? { unknown: true } : {}) }
       saveChat({ ...withQ, msgs: [...withQ.msgs, m] })
       if (!(out.k === "answer" && out.conversational)) {
@@ -147,7 +163,7 @@ export default function Assist({ onContact }: Props) {
               </div>
             </div>
           )}
-          {msgs.map((m, i) => <Bubble key={i} m={m} all={msgs} lastQ={[...msgs.slice(0, i + 1)].reverse().find((x) => x.r === "u")?.t ?? ""} onContact={onContact} />)}
+          {msgs.map((m, i) => <Bubble key={i} m={m} all={msgs} lastQ={[...msgs.slice(0, i + 1)].reverse().find((x) => x.r === "u")?.t ?? ""} onContact={onContact} onPick={(q) => void send(q)} />)}
           {busy && <p className="flex items-center gap-2 text-muted-ink"><span className="size-2 animate-pulse rounded-full bg-brand" />Checking official sources…</p>}
         </div>
       </div>

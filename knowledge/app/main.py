@@ -570,7 +570,7 @@ def _auto_seed_sample_docs(ctx: AppContext) -> None:
                     checksum=checksum,
                     storage_key=key,
                     uploaded_by="u_2",
-                    uploaded_by_name="Demo Admin",
+                    uploaded_by_name="Ada Admin",
                 )
                 s.add(doc)
                 s.flush()

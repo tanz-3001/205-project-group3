@@ -177,12 +177,18 @@ class TestChunking:
             ("Academic_Calendar_2026_2027.pdf", "pdf"),
             ("Library_and_Research_Services_Guide_2026.pdf", "pdf"),
             ("Graduation_and_Academic_Honours_Guide_2026.pdf", "pdf"),
+            ("Academic_Integrity_and_Research_Ethics_Policy_2026.pdf", "pdf"),
+            ("Scholarships_Bursaries_and_Financial_Aid_Guide_2026.pdf", "pdf"),
             ("Student_Handbook_2026.docx", "docx"),
             ("Campus_Housing_and_Transport_Guide_2026.docx", "docx"),
             ("Careers_Internships_and_Placements_Guide_2026.docx", "docx"),
+            ("International_Student_Onboarding_and_Campus_Life_Guide_2026.docx", "docx"),
+            ("Undergraduate_and_Postgraduate_Programme_Catalogue_2026.docx", "docx"),
             ("IT_Help_Desk_FAQ.txt", "txt"),
             ("Health_Safety_and_Accessibility_Services.txt", "txt"),
             ("Exchange_and_Study_Abroad_Handbook_2026.txt", "txt"),
+            ("Student_Code_of_Conduct_and_Campus_Policies_2026.txt", "txt"),
+            ("Innovation_Labs_Makerspace_and_Student_Research_Guide_2026.txt", "txt"),
         ]
         for name, kind in expected:
             chunks = chunk_blocks(extract(kind, sample(name)).blocks, 500, 100, name)
