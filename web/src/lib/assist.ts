@@ -43,8 +43,23 @@ export const SOURCES: Source[] = FAQS.map((f, i) => {
 export const sourceById = (id: string) => SOURCES.find((s) => s.id === id)
 
 export type Reply =
-  | { k: "answer"; text: string; src: string[]; cites?: Citation[] }
+  | { k: "answer"; text: string; src: string[]; cites?: Citation[]; conversational?: boolean }
   | { k: "escalate"; text: string; category: string; urgent: boolean; /** true when no official source answered a non-sensitive question */ unknown?: boolean }
+
+export function conversationalReply(q: string): string | null {
+  const norm = q.trim().toLowerCase().replace(/[!?.]+$/g, "").replace(/\s+/g, " ")
+  if (!norm) return null
+  if (/^(?:hi+|hello+|hey+|good (?:morning|afternoon|evening)|salam|assalamu ?alaikum|yo|sup|hola|howdy)(?: (?:there|synapse|assist|bot|bro|team))?$/i.test(norm)) {
+    return "Hi! I’m Synapse Assist. Ask me anything about courses, academic dates, fees, IT support, campus housing, shuttles, library rooms, internships, graduation, or accessibility accommodations."
+  }
+  if (/^(?:how are you(?: doing)?|who are you|what (?:are you|can you do|can you help(?: me)? with)|help(?: me)?|start|menu)$/i.test(norm)) {
+    return "I’m Synapse Assist — I search official university policies and handbooks to give grounded answers with source citations. Try asking about deadlines, coursework rules, Wi-Fi, printing quotas, library bookings, or housing."
+  }
+  if (/^(?:thanks(?: a lot| so much)?|thank you(?: so much| very much)?|thx|ty|cheers|ok|okay|got it|cool|great|bye|goodbye)$/i.test(norm)) {
+    return "You’re welcome! Let me know anytime if you need help finding another policy or raising a request with staff."
+  }
+  return null
+}
 
 /** A citation from Synapse Knowledge (an indexed university document). */
 export type Citation = { id: string; doc: string; location: string; excerpt: string; documentId: string; chunkId: string }
@@ -91,6 +106,8 @@ export async function answerChat(q: string, earlier: Msg[], token?: string): Pro
       text: category === "Wellbeing" ? "You don’t have to sort this out alone. A member of staff will read your message and reply." : "A member of staff needs to look at this. They’ll get your request as written, so you won’t need to repeat it.",
     }
   }
+  const chatty = conversationalReply(q)
+  if (chatty) return { k: "answer", text: chatty, src: [], conversational: true }
   if (token) {
     const fromKnowledge = await askKnowledge(q, earlier, token)
     if (fromKnowledge) return fromKnowledge

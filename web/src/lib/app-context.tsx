@@ -7,12 +7,14 @@ import { knowledge } from "./knowledge"
 export type Status = "Waiting for staff" | "In progress" | "Resolved"
 export type Req = { id: number; q: string; tag: string; at: number; status: Status; reply?: string; transcript?: string[]; staff_updated_at?: number }
 export type Entry = { q: string; tag: string; type: "answered" | "escalated" | "unknown"; at: number; /** how long the portal took to respond, in ms */ ms?: number; /** where the question was asked */ via?: "ask" | "assist" }
-export type Msg = { r: "u" | "a"; t: string; k?: "answer" | "escalate"; src?: string[]; cites?: Citation[]; category?: string; urgent?: boolean }
+export type Msg = { r: "u" | "a"; t: string; k?: "answer" | "escalate"; src?: string[]; cites?: Citation[]; category?: string; urgent?: boolean; unknown?: boolean }
 export type Chat = { id: number; title: string; at: number; msgs: Msg[] }
 type State = { requests: Req[]; log: Entry[]; ratings: boolean[]; chats: Chat[] }
 type Ctx = State & {
   activeChatId: number | null
   setActiveChatId: (id: number | null) => void
+  pendingPrompt: string | null
+  setPendingPrompt: (q: string | null) => void
   addRequest: (q: string, tag: string, transcript?: string[]) => void
   addEntry: (e: Omit<Entry, "at">) => void
   rate: (v: boolean) => void
@@ -94,6 +96,7 @@ export function AppProvider({ children, studentId }: { children: ReactNode; stud
   const token = student?.token
   const [s, setS] = useState<State>(() => load(key))
   const [activeChatId, setActiveChatId] = useState<number | null>(null)
+  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null)
   const skipNextPush = useRef(false)
   const initialPullDone = useRef(false)
 
@@ -208,6 +211,8 @@ export function AppProvider({ children, studentId }: { children: ReactNode; stud
       ...s,
       activeChatId,
       setActiveChatId,
+      pendingPrompt,
+      setPendingPrompt,
       addRequest: (q, tag, transcript) => setS((p) => ({ ...p, requests: [...p.requests, { id: Date.now(), q, tag, at: Date.now(), status: "Waiting for staff", transcript }] })),
       addEntry: (e) => setS((p) => ({ ...p, log: [...p.log, { ...e, at: Date.now() }] })),
       rate: (v) => setS((p) => ({ ...p, ratings: [...p.ratings, v] })),
@@ -219,13 +224,14 @@ export function AppProvider({ children, studentId }: { children: ReactNode; stud
       reset: () => {
         skipNextPush.current = true
         setActiveChatId(null)
+        setPendingPrompt(null)
         setS(empty)
         if (token) {
           void knowledge.putPortalState(token, studentId, { log: [], requests: [], ratings: [], chats: [], reset: true }).catch(() => {})
         }
       },
     }),
-    [s, activeChatId, token, studentId],
+    [s, activeChatId, pendingPrompt, token, studentId],
   )
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>
 }

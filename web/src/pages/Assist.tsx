@@ -1,4 +1,4 @@
-import { HeartHandshake, History, Plus, Send, Sparkles, Trash2 } from "lucide-react"
+import { HeartHandshake, HelpCircle, History, Plus, Send, Sparkles, Trash2 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import type { FormEvent } from "react"
 import { CitedText, SourceList } from "@/components/AssistSources"
@@ -22,6 +22,15 @@ const toTranscript = (m: Msg[]) => m.map((x) => (x.r === "u" ? "Student: " : "As
 
 function Bubble({ m, lastQ, all, onContact }: { m: Msg; lastQ: string; all: Msg[]; onContact: Props["onContact"] }) {
   if (m.r === "u") return <div className="max-w-[85%] self-end rounded-2xl rounded-br-sm bg-brand px-4 py-2.5 text-white">{m.t}</div>
+  if (m.k === "escalate" && m.unknown) {
+    return (
+      <article className="rounded-2xl border border-line bg-white p-5 animate-in fade-in slide-in-from-bottom-2">
+        <h3 className="mb-1 flex items-center gap-2 text-lg font-bold text-navy"><HelpCircle aria-hidden="true" className="size-5 text-brand" />Couldn’t find that in official university documents</h3>
+        <p className="mb-3 max-w-[64ch]">{m.t}</p>
+        <Button variant="outline" onClick={() => onContact(null, lastQ, toTranscript(all))}>Ask staff</Button>
+      </article>
+    )
+  }
   if (m.k === "escalate") {
     return (
       <article className="rounded-2xl border border-line border-t-4 border-t-amber-badge bg-white p-5 animate-in fade-in slide-in-from-bottom-2">
@@ -47,13 +56,14 @@ function Bubble({ m, lastQ, all, onContact }: { m: Msg; lastQ: string; all: Msg[
 }
 
 export default function Assist({ onContact }: Props) {
-  const { chats, saveChat, deleteChat, addEntry, activeChatId: chatId, setActiveChatId: setChatId } = useApp()
+  const { chats, saveChat, deleteChat, addEntry, activeChatId: chatId, setActiveChatId: setChatId, pendingPrompt, setPendingPrompt } = useApp()
   const { student } = useAuth()
   const [text, setText] = useState("")
   const [busy, setBusy] = useState(false)
   const [hist, setHist] = useState(false)
   const [filter, setFilter] = useState("")
   const box = useRef<HTMLDivElement>(null)
+  const sendingRef = useRef(false)
   const chat = chats.find((c) => c.id === chatId) ?? null
   const msgs = chat?.msgs ?? []
   const first = (student?.name ?? "").split(/\s+/)[0]
@@ -62,29 +72,50 @@ export default function Assist({ onContact }: Props) {
     box.current?.scrollTo({ top: box.current.scrollHeight, behavior: "smooth" })
   }, [msgs.length, busy])
 
-  const send = async (raw: string) => {
+  const send = async (raw: string, freshChat = false) => {
     const q = raw.trim().slice(0, 500)
-    if (!q || busy) return
-    const base: Chat = chat ?? { id: Date.now(), title: q.slice(0, 48), at: Date.now(), msgs: [] }
+    if (!q || sendingRef.current) return
+    sendingRef.current = true
+    const active = freshChat ? null : chat
+    const now = Date.now()
+    const base: Chat = active ?? { id: now, title: q.slice(0, 48), at: now, msgs: [] }
     const withQ: Chat = { ...base, msgs: [...base.msgs, { r: "u", t: q }] }
     setChatId(withQ.id)
     saveChat(withQ)
     setText("")
     setBusy(true)
     const t0 = performance.now()
-    const out = await answerChat(q, base.msgs, student?.token)
-    const ms = Math.round(performance.now() - t0)
-    const m: Msg = out.k === "answer" ? { r: "a", k: "answer", t: out.text, src: out.src, ...(out.cites ? { cites: out.cites } : {}) } : { r: "a", k: "escalate", t: out.text, category: out.category, urgent: out.urgent }
-    saveChat({ ...withQ, msgs: [...withQ.msgs, m] })
-    addEntry({
-      q,
-      tag: out.k === "answer" ? (out.cites ? "Knowledge base" : (sourceById(out.src[0])?.topic ?? "General")) : out.category,
-      type: out.k === "answer" ? "answered" : out.unknown ? "unknown" : "escalated",
-      ms,
-      via: "assist",
-    })
-    setBusy(false)
+    try {
+      const out = await answerChat(q, base.msgs, student?.token)
+      const ms = Math.round(performance.now() - t0)
+      const m: Msg =
+        out.k === "answer"
+          ? { r: "a", k: "answer", t: out.text, src: out.src, ...(out.cites ? { cites: out.cites } : {}) }
+          : { r: "a", k: "escalate", t: out.text, category: out.category, urgent: out.urgent, ...(out.unknown ? { unknown: true } : {}) }
+      saveChat({ ...withQ, msgs: [...withQ.msgs, m] })
+      if (!(out.k === "answer" && out.conversational)) {
+        addEntry({
+          q,
+          tag: out.k === "answer" ? (out.cites ? "Knowledge base" : (sourceById(out.src[0])?.topic ?? "General")) : out.category,
+          type: out.k === "answer" ? "answered" : out.unknown ? "unknown" : "escalated",
+          ms,
+          via: "assist",
+        })
+      }
+    } finally {
+      sendingRef.current = false
+      setBusy(false)
+    }
   }
+  const sendRef = useRef(send)
+  sendRef.current = send
+
+  useEffect(() => {
+    if (!pendingPrompt) return
+    const q = pendingPrompt
+    setPendingPrompt(null)
+    void sendRef.current(q, true)
+  }, [pendingPrompt, setPendingPrompt])
   const submit = (e: FormEvent) => {
     e.preventDefault()
     void send(text)
