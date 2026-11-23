@@ -79,15 +79,18 @@ async function fetchGuardToken(email: string, password: string): Promise<{ token
   }
 }
 
+const cleanDemoName = (name: string) => (name === "Demo Admin" ? "Ada Admin" : name === "Demo Student" ? "Layla A." : name)
+
 function load(): Student | null {
   try {
     const raw = localStorage.getItem(KEY)
     const s = raw ? (JSON.parse(raw) as Student) : null
     if (!s) return null
     if (s.token && s.expiresAt && s.expiresAt < Date.now()) return null
-    if (s.guardRole === "admin" && s.token) return s
+    const clean: Student = { ...s, name: cleanDemoName(s.name || "") }
+    if (clean.guardRole === "admin" && clean.token) return clean
     // A regular student session can never carry an Admin role unless backed by a Guard token.
-    return s.role !== "Admin" && (/^S\d{6,8}$/.test(s.id) || /^u_\d+$/.test(s.id)) ? s : null
+    return clean.role !== "Admin" && (/^S\d{6,8}$/.test(clean.id) || /^u_\d+$/.test(clean.id)) ? clean : null
   } catch {
     return null
   }
@@ -216,7 +219,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const exp = tokenExpiry(out.token)
           persistStudent({
             id: out.user.id,
-            name: out.user.name || out.user.email || "User",
+            name: cleanDemoName(out.user.name || out.user.email || "User"),
             email: out.user.email,
             role: role === "admin" ? "Administrator" : "Student",
             guardRole: role,
@@ -224,7 +227,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             expiresAt: exp,
           })
           if (role === "admin") {
-            const acct = ADMINS.find((a) => a.email === input.toLowerCase()) ?? { email: input.toLowerCase(), name: out.user.name || "Ada Admin" }
+            const acct = ADMINS.find((a) => a.email === input.toLowerCase()) ?? { email: input.toLowerCase(), name: cleanDemoName(out.user.name || "Ada Admin") }
             persistAdmin(acct, out.token)
           }
           return null

@@ -27,8 +27,8 @@ const publicUser = ({ id, email, name, role }) => ({ id, email, name, role });
 // Demo accounts so the prototype works immediately
 function seedDemoUsers() {
   if (users.size) return;
-  createUser({ email: 'student@demo.ac.ae', password: 'Student#123', name: 'Demo Student', role: ROLES.STUDENT });
-  createUser({ email: 'admin@demo.ac.ae', password: 'Admin#123', name: 'Demo Admin', role: ROLES.ADMIN });
+  createUser({ email: 'student@demo.ac.ae', password: 'Student#123', name: 'Layla A.', role: ROLES.STUDENT });
+  createUser({ email: 'admin@demo.ac.ae', password: 'Admin#123', name: 'Ada Admin', role: ROLES.ADMIN });
 }
 
 module.exports = { createUser, findByEmail, findById, publicUser, seedDemoUsers };
